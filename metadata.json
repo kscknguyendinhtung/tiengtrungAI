@@ -1,0 +1,7 @@
+{
+  "name": "tiengtrungAI_official",
+  "description": "Ứng dụng học tiếng Trung thông minh với AI: Quét ảnh OCR, học từ vựng Flashcard, luyện đọc và phân tích ngữ pháp.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
