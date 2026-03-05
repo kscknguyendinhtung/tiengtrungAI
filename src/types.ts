@@ -13,7 +13,7 @@ export interface Vocabulary {
 export interface OCRResult {
   originalText: string;
   sentences: ReadingSentence[];
-  words: string[];
+  words: Vocabulary[];
 }
 
 export interface ReadingSentence {

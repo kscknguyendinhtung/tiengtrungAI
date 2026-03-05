@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from "react";
-import { Volume2, CheckCircle2, Trash2, FileText, ChevronRight, Play, Upload, ChevronLeft } from "lucide-react";
+import { Volume2, CheckCircle2, Trash2, FileText, ChevronRight, Play, Upload, ChevronLeft, Plus, RefreshCw } from "lucide-react";
 import { motion } from "motion/react";
 import { ReadingSentence, ReadingWord, Vocabulary } from "../types";
+import { ttsService } from "../services/ttsService";
 
 interface Props {
   sentences: ReadingSentence[];
@@ -10,11 +11,15 @@ interface Props {
   onUpload: () => void;
   isSyncing: boolean;
   onAnalyzeGrammar: (text: string) => void;
+  onAddVocab: (word: string) => void;
+  onError: (error: any) => Promise<boolean>;
   key?: string;
 }
 
-export default function ReadingTab({ sentences, setSentences, vocabList, onUpload, isSyncing, onAnalyzeGrammar }: Props) {
+export default function ReadingTab({ sentences, setSentences, vocabList, onUpload, isSyncing, onAnalyzeGrammar, onAddVocab, onError }: Props) {
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [addingWord, setAddingWord] = useState<string | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // Helper to find the best match in vocabList for a given string starting at index
   const findBestMatch = (text: string, startIndex: number) => {
@@ -41,21 +46,33 @@ export default function ReadingTab({ sentences, setSentences, vocabList, onUploa
       let i = 0;
 
       while (i < text.length) {
-        const match = findBestMatch(text, i);
-        if (match) {
+        // 1. Try to find the longest match in vocabList
+        const vocabMatch = findBestMatch(text, i);
+        
+        // 2. Try to find if the OCR result already has a grouped word starting here
+        const ocrMatch = sentence.words.find(w => text.startsWith(w.char, i));
+
+        // Prioritize the longer match
+        if (vocabMatch && (!ocrMatch || vocabMatch.chinese.length >= ocrMatch.char.length)) {
           newWords.push({
-            char: match.chinese,
-            amBoi: match.amBoi,
-            meaning: match.meaning
+            char: vocabMatch.chinese,
+            amBoi: vocabMatch.amBoi,
+            meaning: vocabMatch.meaning
           });
-          i += match.chinese.length;
+          i += vocabMatch.chinese.length;
+        } else if (ocrMatch) {
+          newWords.push({
+            char: ocrMatch.char,
+            amBoi: ocrMatch.amBoi,
+            meaning: ocrMatch.meaning
+          });
+          i += ocrMatch.char.length;
         } else {
-          // If no match in vocab, try to find in existing sentence.words or just use the char
-          const existingWord = sentence.words.find(w => w.char === text[i]);
+          // Fallback to single character
           newWords.push({
             char: text[i],
-            amBoi: existingWord?.amBoi || "",
-            meaning: existingWord?.meaning || ""
+            amBoi: "",
+            meaning: ""
           });
           i++;
         }
@@ -66,10 +83,7 @@ export default function ReadingTab({ sentences, setSentences, vocabList, onUploa
   }, [sentences, vocabList]);
 
   const speak = (text: string) => {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "zh-CN";
-    utterance.rate = playbackSpeed;
-    window.speechSynthesis.speak(utterance);
+    ttsService.speak(text, "zh-CN", playbackSpeed);
   };
 
   const toggleMastered = (index: number) => {
@@ -104,14 +118,25 @@ export default function ReadingTab({ sentences, setSentences, vocabList, onUploa
           />
         </div>
         <button 
-          onClick={() => {
+          onClick={async () => {
             const allText = sentences.map(s => s.chinese).join(" ");
-            onAnalyzeGrammar(allText);
+            setIsAnalyzing(true);
+            try {
+              await onAnalyzeGrammar(allText);
+            } catch (error) {
+              const handled = await onError(error);
+              if (!handled) {
+                alert("Có lỗi xảy ra khi phân tích ngữ pháp.");
+              }
+            } finally {
+              setIsAnalyzing(false);
+            }
           }}
-          className="p-3 bg-white border border-neutral-200 rounded-2xl text-blue-600 hover:bg-blue-50 shadow-sm flex items-center gap-2"
+          disabled={isAnalyzing}
+          className="p-3 bg-white border border-neutral-200 rounded-2xl text-blue-600 hover:bg-blue-50 shadow-sm flex items-center gap-2 disabled:opacity-50"
           title="Phân tích ngữ pháp toàn bộ"
         >
-          <FileText className="w-5 h-5" />
+          {isAnalyzing ? <RefreshCw className="w-5 h-5 animate-spin" /> : <FileText className="w-5 h-5" />}
           <span className="text-xs font-bold">Ngữ pháp</span>
         </button>
         <button 
@@ -133,13 +158,37 @@ export default function ReadingTab({ sentences, setSentences, vocabList, onUploa
             <div className="p-6 space-y-6">
               {/* Word-by-word display */}
               <div className="flex flex-wrap gap-x-4 gap-y-8 justify-center">
-                {sentence.words.map((word, j) => (
-                  <div key={j} className="flex flex-col items-center cursor-pointer" onClick={() => speak(word.char)}>
-                    <span className="text-[10px] text-emerald-600 font-bold mb-1">{word.amBoi}</span>
-                    <span className="text-3xl font-bold text-neutral-800 hover:text-emerald-600 transition-colors">{word.char}</span>
-                    <span className="text-[10px] text-neutral-400 mt-1">{word.meaning}</span>
-                  </div>
-                ))}
+                {sentence.words.map((word, j) => {
+                  const isInVocab = vocabList.some(v => v.chinese === word.char);
+                  return (
+                    <div key={j} className="flex flex-col items-center group relative">
+                      <span className="text-[10px] text-emerald-600 font-bold mb-1">{word.amBoi}</span>
+                      <div className="relative">
+                        <span 
+                          className="text-3xl font-bold text-neutral-800 hover:text-emerald-600 transition-colors cursor-pointer"
+                          onClick={() => speak(word.char)}
+                        >
+                          {word.char}
+                        </span>
+                        {!isInVocab && (
+                          <button 
+                            onClick={async () => {
+                              setAddingWord(word.char);
+                              await onAddVocab(word.char);
+                              setAddingWord(null);
+                            }}
+                            disabled={addingWord === word.char}
+                            className="absolute -top-2 -right-4 p-1 bg-emerald-100 text-emerald-600 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Thêm vào từ vựng"
+                          >
+                            <Plus className={`w-3 h-3 ${addingWord === word.char ? 'animate-spin' : ''}`} />
+                          </button>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-neutral-400 mt-1">{word.meaning}</span>
+                    </div>
+                  );
+                })}
               </div>
 
               <div className="space-y-2 pt-4 border-t border-neutral-50">
@@ -157,7 +206,16 @@ export default function ReadingTab({ sentences, setSentences, vocabList, onUploa
                   <Play className="w-5 h-5 fill-current" />
                 </button>
                 <button 
-                  onClick={() => onAnalyzeGrammar(sentence.chinese)}
+                  onClick={async () => {
+                    try {
+                      await onAnalyzeGrammar(sentence.chinese);
+                    } catch (error) {
+                      const handled = await onError(error);
+                      if (!handled) {
+                        alert("Có lỗi xảy ra khi phân tích ngữ pháp.");
+                      }
+                    }
+                  }}
                   className="p-2 bg-white rounded-xl shadow-sm text-blue-600 hover:bg-blue-50 transition-colors"
                   title="Phân tích ngữ pháp"
                 >

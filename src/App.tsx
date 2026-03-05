@@ -7,7 +7,8 @@ import {
   RefreshCw, 
   FileText,
   ChevronRight,
-  ChevronLeft
+  ChevronLeft,
+  Key
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Vocabulary, AppConfig, ReadingSentence, GrammarPoint } from "./types";
@@ -76,6 +77,45 @@ export default function App() {
     return match ? match[1] : url;
   };
 
+  const handleAIError = async (error: any) => {
+    const errorMsg = typeof error === 'string' ? error : JSON.stringify(error);
+    if (errorMsg.includes("429") || errorMsg.includes("RESOURCE_EXHAUSTED")) {
+      if (window.aistudio) {
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        if (!hasKey) {
+          alert("Bạn đã hết hạn mức sử dụng AI miễn phí. Vui lòng chọn API Key cá nhân (Paid) để tiếp tục.");
+          await window.aistudio.openSelectKey();
+          return true; // Handled
+        } else {
+          alert("Hạn mức API Key của bạn đã hết. Vui lòng kiểm tra lại tài khoản Google Cloud hoặc chọn Key khác.");
+        }
+      } else {
+        alert("Hạn mức AI miễn phí đã hết. Vui lòng thử lại sau hoặc cấu hình API Key cá nhân.");
+      }
+    }
+    return false;
+  };
+
+  const handleAddSingleVocab = async (word: string) => {
+    if (vocabList.some(v => v.chinese === word)) return;
+    try {
+      const enriched = await geminiService.enrichVocabulary(word);
+      const newItem: Vocabulary = {
+        chinese: word,
+        pinyin: enriched.pinyin || "",
+        amBoi: enriched.amBoi || "",
+        meaning: enriched.meaning || "",
+        hanViet: enriched.hanViet || "",
+        wordType: enriched.wordType || "",
+        topic: enriched.topic || "Chung",
+        isMastered: false
+      };
+      setVocabList(prev => [...prev, newItem]);
+    } catch (error) {
+      handleAIError(error);
+    }
+  };
+
   if (!config) {
     return <ConfigScreen onSave={setConfig} onSync={handleSync} />;
   }
@@ -91,6 +131,19 @@ export default function App() {
           <h1 className="text-xl font-bold tracking-tight text-neutral-800">tiengtrungAI</h1>
         </div>
         <div className="flex items-center gap-3">
+          <button 
+            onClick={async () => {
+              if (window.aistudio) {
+                await window.aistudio.openSelectKey();
+              } else {
+                alert("Tính năng này chỉ khả dụng trong môi trường AI Studio.");
+              }
+            }}
+            className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-full transition-colors"
+            title="Cấu hình API Key cá nhân"
+          >
+            <Key className="w-5 h-5" />
+          </button>
           <button 
             onClick={handleSync}
             disabled={isSyncing}
@@ -116,31 +169,22 @@ export default function App() {
             <OCRTab 
               key="ocr"
               config={config}
+              onError={handleAIError}
               onResult={(result) => {
                 // Update Reading Sentences
                 setReadingSentences(prev => [...result.sentences, ...prev]);
                 
                 // Update Vocabulary (avoid duplicates)
-                const newVocab = result.words.filter(w => !vocabList.some(v => v.chinese === w));
+                const newVocab = result.words.filter(w => !vocabList.some(v => v.chinese === w.chinese));
                 
-                // Enrich vocabulary automatically
-                Promise.all(newVocab.map(w => geminiService.enrichVocabulary(w))).then(enriched => {
-                  const newItems: Vocabulary[] = enriched.map(item => ({
-                    chinese: item.chinese || "",
-                    pinyin: item.pinyin || "",
-                    amBoi: item.amBoi || "",
-                    meaning: item.meaning || "",
-                    hanViet: item.hanViet || "",
-                    wordType: item.wordType || "",
-                    topic: item.topic || "Chung",
-                    isMastered: false
-                  }));
-                  setVocabList(prev => [...prev, ...newItems]);
-                });
+                // Add new vocabulary items directly
+                setVocabList(prev => [...prev, ...newVocab]);
                 
                 // Analyze grammar for the whole text
                 geminiService.analyzeGrammar(result.originalText).then(points => {
                   setGrammarPoints(prev => [...points, ...prev]);
+                }).catch(error => {
+                  handleAIError(error);
                 });
 
                 setActiveTab("reading");
@@ -154,6 +198,7 @@ export default function App() {
               setVocabList={setVocabList}
               onUpload={handleUpload}
               isSyncing={isSyncing}
+              onError={handleAIError}
             />
           )}
           {activeTab === "reading" && (
@@ -169,6 +214,8 @@ export default function App() {
                 setGrammarPoints(prev => [...points, ...prev]);
                 setActiveTab("grammar");
               }}
+              onAddVocab={handleAddSingleVocab}
+              onError={handleAIError}
             />
           )}
           {activeTab === "grammar" && (

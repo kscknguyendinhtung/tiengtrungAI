@@ -8,10 +8,11 @@ import { AppConfig, OCRResult } from "../types";
 interface Props {
   config: AppConfig;
   onResult: (result: OCRResult) => void;
+  onError: (error: any) => Promise<boolean>;
   key?: string;
 }
 
-export default function OCRTab({ config, onResult }: Props) {
+export default function OCRTab({ config, onResult, onError }: Props) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [sourceLang, setSourceLang] = useState("Trung");
@@ -26,27 +27,35 @@ export default function OCRTab({ config, onResult }: Props) {
     try {
       const reader = new FileReader();
       reader.onloadend = async () => {
-        const base64 = reader.result as string;
-        const result = await geminiService.performOCR(base64);
-        
-        setStatusMessage("Đã đọc xong!");
-        
-        // Save to Google Sheet
-        const sheetId = config.sheetUrl.match(/\/d\/(.*?)(\/|$)/)?.[1] || config.sheetUrl;
-        await googleSheetService.saveOCRToSheet(config.scriptUrl, sheetId, result.originalText);
-        
-        setTimeout(() => {
-          onResult(result);
-        }, 1000);
+        try {
+          const base64 = reader.result as string;
+          const result = await geminiService.performOCR(base64);
+          
+          setStatusMessage("Đã đọc xong!");
+          
+          // Save to Google Sheet
+          const sheetId = config.sheetUrl.match(/\/d\/(.*?)(\/|$)/)?.[1] || config.sheetUrl;
+          await googleSheetService.saveOCRToSheet(config.scriptUrl, sheetId, result.originalText);
+          
+          setTimeout(() => {
+            onResult(result);
+          }, 1000);
+        } catch (error) {
+          console.error("OCR Inner Error:", error);
+          const handled = await onError(error);
+          if (!handled) {
+            alert("Có lỗi xảy ra khi quét ảnh. Vui lòng thử lại.");
+          }
+          setIsProcessing(false);
+          setStatusMessage("");
+        }
       };
       reader.readAsDataURL(file);
     } catch (error) {
       console.error("OCR Error:", error);
+      setIsProcessing(false);
       setStatusMessage("");
-      alert("Có lỗi xảy ra khi quét ảnh. Vui lòng thử lại.");
-    } finally {
-      // We don't set isProcessing to false here because we want to show "Đã đọc xong" for a bit
-      // and then onResult will switch the tab anyway.
+      alert("Có lỗi xảy ra khi đọc file.");
     }
   };
 

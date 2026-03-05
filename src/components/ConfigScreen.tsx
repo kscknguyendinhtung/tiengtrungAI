@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AppConfig } from "../types";
-import { Settings, ExternalLink, RefreshCw } from "lucide-react";
+import { Settings, ExternalLink, RefreshCw, Key } from "lucide-react";
 
 interface Props {
   onSave: (config: AppConfig) => void;
@@ -61,8 +61,22 @@ export default function ConfigScreen({ onSave, onSync }: Props) {
               Lưu cấu hình
             </button>
             
+            <button 
+              onClick={async () => {
+                if (window.aistudio) {
+                  await window.aistudio.openSelectKey();
+                } else {
+                  alert("Tính năng này chỉ khả dụng trong môi trường AI Studio.");
+                }
+              }}
+              className="w-full bg-white border border-neutral-200 text-neutral-600 font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2"
+            >
+              <Key className="w-4 h-4" />
+              Cấu hình API Key cá nhân
+            </button>
+            
             <div className="text-xs text-neutral-400 text-center px-4">
-              Bạn cần deploy Google Apps Script làm Web App với quyền "Anyone" để ứng dụng có thể kết nối.
+              Nếu bạn gặp lỗi "Quota Exceeded", hãy sử dụng API Key cá nhân từ Google Cloud Project có bật Billing.
             </div>
           </div>
         </div>

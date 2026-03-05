@@ -1,21 +1,22 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { OCRResult, Vocabulary, GrammarPoint } from "../types";
 
-const apiKey = process.env.GEMINI_API_KEY || "";
-if (!apiKey) {
-  console.warn("GEMINI_API_KEY is missing. AI features will not work.");
-}
-const ai = new GoogleGenAI({ apiKey });
+const getAI = () => {
+  const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY || "";
+  return new GoogleGenAI({ apiKey });
+};
 
 export const geminiService = {
   async performOCR(base64Image: string): Promise<OCRResult> {
+    const ai = getAI();
     const model = "gemini-3-flash-preview";
     const prompt = `
       Analyze this image containing Chinese text. 
       1. Extract all text (OCR).
       2. Split the text into meaningful sentences for learning.
-      3. For each sentence, provide Pinyin and Vietnamese translation.
-      4. For each character in each sentence, provide its "Phiên âm bồi" (Vietnamese phonetic approximation) and basic Vietnamese meaning.
+      3. For each sentence, group characters into meaningful compound words (từ ghép) where applicable. Do not just list individual characters if they form a word together.
+      4. For each sentence, provide Pinyin and Vietnamese translation.
+      5. For each grouped word (từ ghép) in each sentence, provide its "Phiên âm bồi" (Vietnamese phonetic approximation) and basic Vietnamese meaning.
       
       Quy tắc "Phiên âm bồi":
       - Không dùng Pinyin chuẩn (ví dụ: không dùng 'Nǐ hǎo').
@@ -26,8 +27,15 @@ export const geminiService = {
       - zh/ch -> ghi là "tr" (Ví dụ: Zhōngguó -> Trung cuố)
       - r -> ghi là "r" hoặc "l" (Ví dụ: Rén -> Rấn)
 
-      5. Extract a list of unique individual words/vocabulary items found in the text.
-
+      5. Extract an EXHAUSTIVE list of all unique vocabulary items found in the text. 
+      6. IMPORTANT: You must extract EVERY meaningful word, especially technical terms, professional jargon (related to manufacturing, production, quality, personnel, business, etc.), verbs, nouns, and adjectives. 
+      7. Aim for a comprehensive list (e.g., 15-30 words if the text is long). Do not be lazy.
+      8. For each vocabulary item, provide FULL details: pinyin, phiên âm bồi (amBoi), nghĩa (meaning), hán việt (hanViet), chủ đề (topic), loại từ (wordType).
+      
+      Quy tắc phân loại:
+      - Loại từ (wordType): Có thể là Động từ, Tính từ, Danh từ, Liên từ, Lượng từ, Nghi vấn từ, Trợ động từ, Trợ từ, Đại từ, Trạng từ, Giới từ, Thời gian, cảm nghĩ từ, mức độ từ, phương hướng từ... hoặc tự định nghĩa nếu cần.
+      - Chủ đề (topic): Có thể là sản xuất, nhân sự, kinh doanh, chất lượng, Phương hướng, Thời gian... hoặc tự định nghĩa linh động theo ngữ cảnh.
+      
       Return the result in JSON format matching this structure:
       {
         "originalText": "string",
@@ -41,7 +49,17 @@ export const geminiService = {
             ]
           }
         ],
-        "words": ["string"]
+        "words": [
+          {
+            "chinese": "string",
+            "pinyin": "string",
+            "amBoi": "string",
+            "meaning": "string",
+            "hanViet": "string",
+            "wordType": "string",
+            "topic": "string"
+          }
+        ]
       }
     `;
 
@@ -61,32 +79,76 @@ export const geminiService = {
         }
       });
 
-      return JSON.parse(response.text || "{}") as OCRResult;
+      const result = JSON.parse(response.text || "{}") as OCRResult;
+      // Ensure all word objects have required fields
+      if (result.words) {
+        result.words = result.words.map(w => ({
+          ...w,
+          isMastered: false,
+          topic: w.topic || "Chung",
+          wordType: w.wordType || "Chưa phân loại"
+        }));
+      }
+      return result;
     } catch (error) {
       console.error("Gemini OCR Error:", error);
       throw error;
     }
   },
 
-  async enrichVocabulary(word: string): Promise<Partial<Vocabulary>> {
+  async extractVocabularyFromText(text: string): Promise<Vocabulary[]> {
+    const ai = getAI();
     const model = "gemini-3-flash-preview";
     const prompt = `
-      Bạn hãy đóng vai một chuyên gia ngôn ngữ giúp tôi phân tích từ tiếng Trung: "${word}".
+      Phân tích đoạn văn tiếng Trung sau và trích xuất danh sách từ vựng quan trọng: "${text}".
+      
+      Yêu cầu:
+      1. Trích xuất TẤT CẢ các từ vựng có nghĩa (từ đơn và từ ghép).
+      2. Với mỗi từ, cung cấp đầy đủ: pinyin, phiên âm bồi (amBoi), nghĩa (meaning), hán việt (hanViet), chủ đề (topic), loại từ (wordType).
+      3. KHÔNG ĐƯỢC để trống bất kỳ trường nào. Nếu không rõ, hãy suy luận dựa trên ngữ cảnh.
       
       Quy tắc "Phiên âm bồi":
-      - Không dùng Pinyin chuẩn (ví dụ: không dùng 'Nǐ hǎo').
-      - Sử dụng hoàn toàn bằng chữ cái và dấu thanh của tiếng Việt để mô tả âm thanh nghe được (ví dụ: 'Ní hảo').
-      - Ưu tiên các từ gần gũi với cách phát âm của người Việt nhưng vẫn giữ được âm gốc của tiếng Trung.
-      - q (bật hơi) -> ghi là "chi" hoặc "khia" (Ví dụ: Quán -> Choán)
-      - x -> ghi là "xi" (Ví dụ: Xièxie -> Xiê xỉe)
-      - zh/ch -> ghi là "tr" (Ví dụ: Zhōngguó -> Trung cuố)
-      - r -> ghi là "r" hoặc "l" (Ví dụ: Rén -> Rấn)
+      - Sử dụng hoàn toàn bằng chữ cái và dấu thanh của tiếng Việt để mô tả âm thanh (Ví dụ: 'Ní hảo').
+      
+      Trả về JSON array các đối tượng Vocabulary:
+      [
+        {
+          "chinese": "string",
+          "pinyin": "string",
+          "amBoi": "string",
+          "meaning": "string",
+          "hanViet": "string",
+          "wordType": "string",
+          "topic": "string"
+        }
+      ]
+    `;
 
-      Hãy phân tích: pinyin, phiên âm bồi (amBoi), nghĩa (meaning), hán việt (hanViet), chủ đề (topic), loại từ (wordType).
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json"
+        }
+      });
 
-      Các giá trị gợi ý cho loại từ (wordType): Động từ, Tính từ, Danh từ, Liên từ, Lượng từ, Nghi vấn từ, Trợ động từ, Trợ từ, Đại từ, Trạng từ, Giới từ.
-      Các giá trị gợi ý cho chủ đề (topic): sản xuất, cảm nghĩ từ, nhân sự, mức độ từ, phương hướng từ, kinh doanh, Phương hướng, Thời gian, chất lượng.
+      const words = JSON.parse(response.text || "[]") as Vocabulary[];
+      return words.map(w => ({ ...w, isMastered: false }));
+    } catch (error) {
+      console.error("Gemini Text Extraction Error:", error);
+      return [];
+    }
+  },
 
+  async enrichVocabulary(word: string): Promise<Partial<Vocabulary>> {
+    const ai = getAI();
+    const model = "gemini-3-flash-preview";
+    const prompt = `
+      Phân tích chi tiết từ tiếng Trung: "${word}".
+      Yêu cầu: Cung cấp đầy đủ pinyin, phiên âm bồi (amBoi), nghĩa (meaning), hán việt (hanViet), chủ đề (topic), loại từ (wordType).
+      KHÔNG ĐƯỢC để trống bất kỳ trường nào. Hãy cung cấp thông tin chính xác và đầy đủ nhất.
+      
       Return JSON:
       {
         "chinese": "${word}",
@@ -108,14 +170,20 @@ export const geminiService = {
         }
       });
 
-      return JSON.parse(response.text || "{}");
+      const data = JSON.parse(response.text || "{}");
+      return {
+        ...data,
+        chinese: word,
+        isMastered: false
+      };
     } catch (error) {
       console.error("Gemini Enrich Error:", error);
-      return { chinese: word };
+      return { chinese: word, isMastered: false };
     }
   },
 
   async analyzeGrammar(text: string): Promise<GrammarPoint[]> {
+    const ai = getAI();
     const model = "gemini-3-flash-preview";
     const prompt = `
       Hãy phân tích ngữ pháp tiếng Trung đơn giản cho đoạn văn sau: "${text}".

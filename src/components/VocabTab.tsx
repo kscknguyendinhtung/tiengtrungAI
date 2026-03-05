@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { 
   Search, 
   Plus, 
@@ -20,21 +20,26 @@ import {
   Edit2,
   Play,
   Pause,
-  Settings2
+  Settings2,
+  Image as ImageIcon,
+  Type as TypeIcon,
+  FileText
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Vocabulary } from "../types";
 import { geminiService } from "../services/geminiService";
+import { ttsService } from "../services/ttsService";
 
 interface Props {
   vocabList: Vocabulary[];
   setVocabList: React.Dispatch<React.SetStateAction<Vocabulary[]>>;
   onUpload: () => void;
   isSyncing: boolean;
+  onError: (error: any) => Promise<boolean>;
   key?: string;
 }
 
-export default function VocabTab({ vocabList, setVocabList, onUpload, isSyncing }: Props) {
+export default function VocabTab({ vocabList, setVocabList, onUpload, isSyncing, onError }: Props) {
   const [viewMode, setViewMode] = useState<"table" | "flashcard">("table");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<"all" | "mastered" | "unmastered">("all");
@@ -45,11 +50,22 @@ export default function VocabTab({ vocabList, setVocabList, onUpload, isSyncing 
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingItem, setEditingItem] = useState<Vocabulary | null>(null);
   const [initialFlashcardIndex, setInitialFlashcardIndex] = useState(0);
+  const [addMode, setAddMode] = useState<"single" | "text" | "image">("single");
   const [newWord, setNewWord] = useState("");
+  const [newText, setNewText] = useState("");
   const [isAdding, setIsAdding] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const WORD_TYPES = ["Động từ", "Tính từ", "Danh từ", "Liên từ", "Lượng từ", "Nghi vấn từ", "Trợ động từ", "Trợ từ", "Đại từ", "Trạng từ", "Giới từ"];
-  const TOPICS = ["sản xuất", "cảm nghĩ từ", "nhân sự", "mức độ từ", "phương hướng từ", "kinh doanh", "Phương hướng", "Thời gian", "chất lượng"];
+  // Dynamic Word Types and Topics
+  const WORD_TYPES = useMemo(() => {
+    const types = new Set(vocabList.map(v => v.wordType).filter(Boolean));
+    return Array.from(types).sort();
+  }, [vocabList]);
+
+  const TOPICS = useMemo(() => {
+    const topics = new Set(vocabList.map(v => v.topic).filter(Boolean));
+    return Array.from(topics).sort();
+  }, [vocabList]);
 
   const filteredList = useMemo(() => {
     let list = [...vocabList];
@@ -91,26 +107,66 @@ export default function VocabTab({ vocabList, setVocabList, onUpload, isSyncing 
   }, [vocabList, searchQuery, filterStatus, sortOrder, selectedWordTypes, selectedTopics]);
 
   const handleAddWord = async () => {
-    if (!newWord) return;
+    if (addMode === "single") {
+      if (!newWord) return;
+      setIsAdding(true);
+      try {
+        const details = await geminiService.enrichVocabulary(newWord);
+        const newItem: Vocabulary = {
+          chinese: newWord,
+          pinyin: details.pinyin || "",
+          amBoi: details.amBoi || "",
+          meaning: details.meaning || "",
+          hanViet: details.hanViet || "",
+          wordType: details.wordType || "Chưa phân loại",
+          topic: details.topic || "Chung",
+          isMastered: false
+        };
+        setVocabList(prev => [...prev, newItem]);
+        setNewWord("");
+        setShowAddModal(false);
+      } catch (error) {
+        const handled = await onError(error);
+        if (!handled) alert("Có lỗi xảy ra khi phân tích từ vựng.");
+      } finally {
+        setIsAdding(false);
+      }
+    } else if (addMode === "text") {
+      if (!newText) return;
+      setIsAdding(true);
+      try {
+        const words = await geminiService.extractVocabularyFromText(newText);
+        setVocabList(prev => [...prev, ...words]);
+        setNewText("");
+        setShowAddModal(false);
+      } catch (error) {
+        const handled = await onError(error);
+        if (!handled) alert("Có lỗi xảy ra khi trích xuất từ vựng.");
+      } finally {
+        setIsAdding(false);
+      }
+    }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
     setIsAdding(true);
     try {
-      const details = await geminiService.enrichVocabulary(newWord);
-      const newItem: Vocabulary = {
-        chinese: newWord,
-        pinyin: details.pinyin || "",
-        amBoi: details.amBoi || "",
-        meaning: details.meaning || "",
-        hanViet: details.hanViet || "",
-        wordType: details.wordType || "",
-        topic: details.topic || "Chung",
-        isMastered: false
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const base64 = event.target?.result as string;
+        const result = await geminiService.performOCR(base64);
+        if (result.words) {
+          setVocabList(prev => [...prev, ...result.words]);
+        }
+        setShowAddModal(false);
+        setIsAdding(false);
       };
-      setVocabList(prev => [...prev, newItem]);
-      setNewWord("");
-      setShowAddModal(false);
+      reader.readAsDataURL(file);
     } catch (error) {
-      console.error(error);
-    } finally {
+      const handled = await onError(error);
+      if (!handled) alert("Có lỗi xảy ra khi quét ảnh.");
       setIsAdding(false);
     }
   };
@@ -124,6 +180,12 @@ export default function VocabTab({ vocabList, setVocabList, onUpload, isSyncing 
   const deleteWordByWord = (word: string) => {
     if (confirm(`Xóa từ "${word}"?`)) {
       setVocabList(prev => prev.filter(v => v.chinese !== word));
+    }
+  };
+
+  const deleteAll = () => {
+    if (confirm("Bạn có chắc chắn muốn xóa TẤT CẢ từ vựng?")) {
+      setVocabList([]);
     }
   };
 
@@ -184,6 +246,13 @@ export default function VocabTab({ vocabList, setVocabList, onUpload, isSyncing 
           >
             <Plus className="w-6 h-6" />
           </button>
+          <button 
+            onClick={deleteAll}
+            className="p-2 bg-white border border-neutral-200 text-neutral-300 hover:text-red-500 rounded-xl shadow-sm transition-colors"
+            title="Xóa tất cả"
+          >
+            <Trash2 className="w-6 h-6" />
+          </button>
         </div>
 
         <div className="flex items-center justify-between">
@@ -242,38 +311,42 @@ export default function VocabTab({ vocabList, setVocabList, onUpload, isSyncing 
 
         {/* Multi-select Filters */}
         <div className="space-y-2">
-          <div className="flex flex-wrap gap-2">
-            <span className="text-[10px] font-bold text-neutral-400 uppercase py-1">Loại từ:</span>
-            {WORD_TYPES.map(type => (
-              <button
-                key={type}
-                onClick={() => toggleWordTypeFilter(type)}
-                className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all border ${
-                  selectedWordTypes.includes(type) 
-                    ? 'bg-emerald-600 text-white border-emerald-600' 
-                    : 'bg-white text-neutral-500 border-neutral-200'
-                }`}
-              >
-                {type}
-              </button>
-            ))}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <span className="text-[10px] font-bold text-neutral-400 uppercase py-1">Chủ đề:</span>
-            {TOPICS.map(topic => (
-              <button
-                key={topic}
-                onClick={() => toggleTopicFilter(topic)}
-                className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all border ${
-                  selectedTopics.includes(topic) 
-                    ? 'bg-blue-600 text-white border-blue-600' 
-                    : 'bg-white text-neutral-500 border-neutral-200'
-                }`}
-              >
-                {topic}
-              </button>
-            ))}
-          </div>
+          {WORD_TYPES.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              <span className="text-[10px] font-bold text-neutral-400 uppercase py-1">Loại từ:</span>
+              {WORD_TYPES.map(type => (
+                <button
+                  key={type}
+                  onClick={() => toggleWordTypeFilter(type)}
+                  className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all border ${
+                    selectedWordTypes.includes(type) 
+                      ? 'bg-emerald-600 text-white border-emerald-600' 
+                      : 'bg-white text-neutral-500 border-neutral-200'
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+          )}
+          {TOPICS.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              <span className="text-[10px] font-bold text-neutral-400 uppercase py-1">Chủ đề:</span>
+              {TOPICS.map(topic => (
+                <button
+                  key={topic}
+                  onClick={() => toggleTopicFilter(topic)}
+                  className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all border ${
+                    selectedTopics.includes(topic) 
+                      ? 'bg-blue-600 text-white border-blue-600' 
+                      : 'bg-white text-neutral-500 border-neutral-200'
+                  }`}
+                >
+                  {topic}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -394,27 +467,93 @@ export default function VocabTab({ vocabList, setVocabList, onUpload, isSyncing 
           <motion.div 
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl"
+            className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl"
           >
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold">Thêm từ mới</h3>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-bold">Thêm từ vựng mới</h3>
               <button onClick={() => setShowAddModal(false)}><X className="w-6 h-6" /></button>
             </div>
-            <input 
-              type="text" 
-              value={newWord}
-              onChange={(e) => setNewWord(e.target.value)}
-              placeholder="Nhập chữ Hán..."
-              className="w-full px-4 py-3 bg-neutral-100 border-none rounded-2xl mb-4 outline-none focus:ring-2 focus:ring-emerald-500"
-              autoFocus
-            />
-            <button 
-              onClick={handleAddWord}
-              disabled={isAdding || !newWord}
-              className="w-full py-3 bg-emerald-600 text-white font-bold rounded-2xl disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {isAdding ? <RefreshCw className="w-5 h-5 animate-spin" /> : "AI Tự điền thông tin"}
-            </button>
+
+            <div className="flex bg-neutral-100 p-1 rounded-2xl mb-6">
+              <button 
+                onClick={() => setAddMode("single")}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${addMode === "single" ? 'bg-white shadow-sm text-emerald-600' : 'text-neutral-500'}`}
+              >
+                <Plus className="w-4 h-4" /> Từ đơn
+              </button>
+              <button 
+                onClick={() => setAddMode("text")}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${addMode === "text" ? 'bg-white shadow-sm text-emerald-600' : 'text-neutral-500'}`}
+              >
+                <TypeIcon className="w-4 h-4" /> Đoạn văn
+              </button>
+              <button 
+                onClick={() => setAddMode("image")}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${addMode === "image" ? 'bg-white shadow-sm text-emerald-600' : 'text-neutral-500'}`}
+              >
+                <ImageIcon className="w-4 h-4" /> Hình ảnh
+              </button>
+            </div>
+
+            {addMode === "single" && (
+              <input 
+                type="text" 
+                value={newWord}
+                onChange={(e) => setNewWord(e.target.value)}
+                placeholder="Nhập chữ Hán..."
+                className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-2xl mb-6 outline-none focus:ring-2 focus:ring-emerald-500"
+                autoFocus
+              />
+            )}
+
+            {addMode === "text" && (
+              <textarea 
+                value={newText}
+                onChange={(e) => setNewText(e.target.value)}
+                placeholder="Dán đoạn văn tiếng Trung vào đây để AI tự trích xuất từ vựng..."
+                className="w-full h-32 px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-2xl mb-6 outline-none focus:ring-2 focus:ring-emerald-500 resize-none text-sm"
+                autoFocus
+              />
+            )}
+
+            {addMode === "image" && (
+              <div 
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full aspect-video bg-neutral-50 border-2 border-dashed border-neutral-200 rounded-2xl mb-6 flex flex-col items-center justify-center cursor-pointer hover:bg-neutral-100 transition-colors"
+              >
+                <ImageIcon className="w-10 h-10 text-neutral-300 mb-2" />
+                <span className="text-sm text-neutral-500 font-medium">Nhấn để chọn ảnh</span>
+                <input 
+                  type="file" 
+                  ref={fileInputRef}
+                  onChange={handleImageUpload}
+                  accept="image/*"
+                  className="hidden"
+                />
+              </div>
+            )}
+
+            {addMode !== "image" && (
+              <button 
+                onClick={handleAddWord}
+                disabled={isAdding || (addMode === "single" ? !newWord : !newText)}
+                className="w-full py-4 bg-emerald-600 text-white font-bold rounded-2xl disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-emerald-100"
+              >
+                {isAdding ? <RefreshCw className="w-5 h-5 animate-spin" /> : (
+                  <>
+                    <RefreshCw className="w-5 h-5" />
+                    AI Tự động phân tích
+                  </>
+                )}
+              </button>
+            )}
+
+            {addMode === "image" && isAdding && (
+              <div className="flex items-center justify-center gap-3 text-emerald-600 font-bold">
+                <RefreshCw className="w-5 h-5 animate-spin" />
+                Đang quét ảnh...
+              </div>
+            )}
           </motion.div>
         </div>
       )}
@@ -485,9 +624,7 @@ function FlashcardView({ list, onToggleMastered, onEdit, initialIndex = 0 }: { l
   const currentItem = list[displayIndex];
 
   const speak = (text: string, lang: "zh-CN" | "vi-VN" = "zh-CN") => {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = lang;
-    window.speechSynthesis.speak(utterance);
+    ttsService.speak(text, lang);
   };
 
   // Auto-play logic
@@ -510,12 +647,22 @@ function FlashcardView({ list, onToggleMastered, onEdit, initialIndex = 0 }: { l
   useEffect(() => {
     if (currentItem) {
       if (isFlipped) {
-        speak(currentItem.meaning, "vi-VN");
+        // Speak the back side
+        if (frontSide === "chinese") {
+          speak(currentItem.meaning, "vi-VN");
+        } else {
+          speak(currentItem.chinese, "zh-CN");
+        }
       } else {
-        speak(currentItem.chinese, "zh-CN");
+        // Speak the front side
+        if (frontSide === "chinese") {
+          speak(currentItem.chinese, "zh-CN");
+        } else {
+          speak(currentItem.meaning, "vi-VN");
+        }
       }
     }
-  }, [isFlipped, currentItem]);
+  }, [isFlipped, currentItem, frontSide]);
 
   const handleShuffle = () => {
     const newOrder = [...shuffleOrder].sort(() => Math.random() - 0.5);

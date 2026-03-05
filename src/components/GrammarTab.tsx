@@ -1,7 +1,8 @@
 import React from "react";
-import { Trash2, BookOpen, Upload } from "lucide-react";
+import { Trash2, BookOpen, Upload, Volume2 } from "lucide-react";
 import { motion } from "motion/react";
 import { GrammarPoint } from "../types";
+import { ttsService } from "../services/ttsService";
 
 interface Props {
   points: GrammarPoint[];
@@ -16,6 +17,12 @@ export default function GrammarTab({ points, setPoints, onUpload, isSyncing }: P
     if (confirm("Xóa mục này?")) {
       setPoints(points.filter((_, i) => i !== index));
     }
+  };
+
+  const speak = (text: string) => {
+    // Basic regex to extract Chinese characters from the example string if it contains Vietnamese/Pinyin
+    // However, usually the example field in GrammarPoint is the Chinese sentence.
+    ttsService.speak(text, "zh-CN");
   };
 
   return (
@@ -67,7 +74,15 @@ export default function GrammarTab({ points, setPoints, onUpload, isSyncing }: P
               </div>
 
               <div className="space-y-2">
-                <div className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Ví dụ</div>
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Ví dụ</div>
+                  <button 
+                    onClick={() => speak(point.example)}
+                    className="p-2 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 transition-colors"
+                  >
+                    <Volume2 className="w-4 h-4" />
+                  </button>
+                </div>
                 <div className="text-lg font-medium text-emerald-600">{point.example}</div>
               </div>
             </div>
