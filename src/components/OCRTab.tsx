@@ -13,6 +13,7 @@ interface Props {
 
 export default function OCRTab({ config, onResult }: Props) {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
   const [sourceLang, setSourceLang] = useState("Trung");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -21,24 +22,31 @@ export default function OCRTab({ config, onResult }: Props) {
     if (!file) return;
 
     setIsProcessing(true);
+    setStatusMessage("Đang đọc ảnh...");
     try {
       const reader = new FileReader();
       reader.onloadend = async () => {
         const base64 = reader.result as string;
         const result = await geminiService.performOCR(base64);
         
+        setStatusMessage("Đã đọc xong!");
+        
         // Save to Google Sheet
         const sheetId = config.sheetUrl.match(/\/d\/(.*?)(\/|$)/)?.[1] || config.sheetUrl;
         await googleSheetService.saveOCRToSheet(config.scriptUrl, sheetId, result.originalText);
         
-        onResult(result);
+        setTimeout(() => {
+          onResult(result);
+        }, 1000);
       };
       reader.readAsDataURL(file);
     } catch (error) {
       console.error("OCR Error:", error);
+      setStatusMessage("");
       alert("Có lỗi xảy ra khi quét ảnh. Vui lòng thử lại.");
     } finally {
-      setIsProcessing(false);
+      // We don't set isProcessing to false here because we want to show "Đã đọc xong" for a bit
+      // and then onResult will switch the tab anyway.
     }
   };
 
@@ -76,8 +84,12 @@ export default function OCRTab({ config, onResult }: Props) {
           >
             {isProcessing ? (
               <div className="flex flex-col items-center gap-3">
-                <Loader2 className="w-12 h-12 text-emerald-600 animate-spin" />
-                <span className="text-sm font-bold text-emerald-600">Đang xử lý...</span>
+                {statusMessage === "Đã đọc xong!" ? (
+                  <CheckCircle2 className="w-12 h-12 text-emerald-600 animate-bounce" />
+                ) : (
+                  <Loader2 className="w-12 h-12 text-emerald-600 animate-spin" />
+                )}
+                <span className="text-sm font-bold text-emerald-600">{statusMessage}</span>
               </div>
             ) : (
               <>

@@ -468,6 +468,7 @@ function FlashcardView({ list, onToggleMastered, onEdit, initialIndex = 0 }: { l
   const [shuffleOrder, setShuffleOrder] = useState<number[]>([]);
   const [isAutoPlaying, setIsAutoPlaying] = useState(false);
   const [autoPlayDelay, setAutoPlayDelay] = useState(4); // seconds
+  const [frontSide, setFrontSide] = useState<"chinese" | "meaning">("chinese");
 
   // Reset index when initialIndex changes
   useEffect(() => {
@@ -540,6 +541,20 @@ function FlashcardView({ list, onToggleMastered, onEdit, initialIndex = 0 }: { l
       <div className="flex items-center justify-between px-2">
         <span className="text-sm font-bold text-neutral-500">{currentIndex + 1} / {list.length}</span>
         <div className="flex items-center gap-2">
+          <div className="flex items-center bg-neutral-100 rounded-lg px-1 py-1 gap-1">
+            <button 
+              onClick={() => setFrontSide("chinese")}
+              className={`px-2 py-1 rounded-md text-[10px] font-bold transition-all ${frontSide === "chinese" ? 'bg-white shadow-sm text-emerald-600' : 'text-neutral-400'}`}
+            >
+              Hán
+            </button>
+            <button 
+              onClick={() => setFrontSide("meaning")}
+              className={`px-2 py-1 rounded-md text-[10px] font-bold transition-all ${frontSide === "meaning" ? 'bg-white shadow-sm text-emerald-600' : 'text-neutral-400'}`}
+            >
+              Việt
+            </button>
+          </div>
           <div className="flex items-center bg-neutral-100 rounded-lg px-2 py-1 gap-2">
             <button 
               onClick={() => setIsAutoPlaying(!isAutoPlaying)}
@@ -584,11 +599,17 @@ function FlashcardView({ list, onToggleMastered, onEdit, initialIndex = 0 }: { l
         >
           {/* Front */}
           <div className="absolute inset-0 backface-hidden bg-white rounded-[2rem] shadow-xl border border-neutral-200 flex flex-col items-center justify-center p-8 text-center">
-            <div className="text-6xl font-bold text-neutral-800 mb-4">{currentItem.chinese}</div>
-            <div className="text-lg text-emerald-600 font-medium">{currentItem.pinyin}</div>
-            <div className="text-xl text-neutral-400 mt-4 italic font-bold" style={{ fontSize: '150%' }}>{currentItem.amBoi}</div>
+            {frontSide === "chinese" ? (
+              <>
+                <div className="text-6xl font-bold text-neutral-800 mb-4">{currentItem.chinese}</div>
+                <div className="text-lg text-emerald-600 font-medium">{currentItem.pinyin}</div>
+                <div className="text-xl text-neutral-400 mt-4 italic font-bold" style={{ fontSize: '150%' }}>{currentItem.amBoi}</div>
+              </>
+            ) : (
+              <div className="text-4xl font-bold text-neutral-800">{currentItem.meaning}</div>
+            )}
             <button 
-              onClick={(e) => { e.stopPropagation(); speak(currentItem.chinese); }}
+              onClick={(e) => { e.stopPropagation(); speak(frontSide === "chinese" ? currentItem.chinese : currentItem.meaning, frontSide === "chinese" ? "zh-CN" : "vi-VN"); }}
               className="absolute top-6 right-6 p-2 bg-neutral-50 rounded-full text-neutral-300 hover:text-emerald-600"
             >
               <Volume2 className="w-6 h-6" />
@@ -597,13 +618,23 @@ function FlashcardView({ list, onToggleMastered, onEdit, initialIndex = 0 }: { l
 
           {/* Back */}
           <div className="absolute inset-0 backface-hidden bg-emerald-600 rounded-[2rem] shadow-xl text-white flex flex-col items-center justify-center p-8 text-center rotate-y-180">
-            <div className="text-3xl font-bold mb-2">{currentItem.meaning}</div>
-            <div className="text-lg opacity-80">{currentItem.hanViet}</div>
+            {frontSide === "chinese" ? (
+              <>
+                <div className="text-3xl font-bold mb-2">{currentItem.meaning}</div>
+                <div className="text-lg opacity-80">{currentItem.hanViet}</div>
+              </>
+            ) : (
+              <>
+                <div className="text-5xl font-bold mb-4">{currentItem.chinese}</div>
+                <div className="text-xl opacity-90">{currentItem.pinyin}</div>
+                <div className="text-lg opacity-70 italic mt-2">{currentItem.amBoi}</div>
+              </>
+            )}
             <div className="mt-6 px-4 py-1 bg-white/20 rounded-full text-xs font-bold uppercase tracking-widest">
               {currentItem.wordType}
             </div>
             <button 
-              onClick={(e) => { e.stopPropagation(); speak(currentItem.meaning, "vi-VN"); }}
+              onClick={(e) => { e.stopPropagation(); speak(frontSide === "chinese" ? currentItem.meaning : currentItem.chinese, frontSide === "chinese" ? "vi-VN" : "zh-CN"); }}
               className="absolute top-6 left-6 p-2 bg-white/10 rounded-full text-white/50 hover:text-white"
             >
               <Volume2 className="w-6 h-6" />

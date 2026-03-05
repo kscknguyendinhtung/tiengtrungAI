@@ -1,7 +1,11 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { OCRResult, Vocabulary, GrammarPoint } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+const apiKey = process.env.GEMINI_API_KEY || "";
+if (!apiKey) {
+  console.warn("GEMINI_API_KEY is missing. AI features will not work.");
+}
+const ai = new GoogleGenAI({ apiKey });
 
 export const geminiService = {
   async performOCR(base64Image: string): Promise<OCRResult> {
