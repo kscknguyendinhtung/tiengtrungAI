@@ -8,7 +8,8 @@ import {
   FileText,
   ChevronRight,
   ChevronLeft,
-  Key
+  Key,
+  MessageCircle
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Vocabulary, AppConfig, ReadingSentence, GrammarPoint } from "./types";
@@ -20,6 +21,7 @@ import OCRTab from "./components/OCRTab";
 import VocabTab from "./components/VocabTab";
 import ReadingTab from "./components/ReadingTab";
 import GrammarTab from "./components/GrammarTab";
+import ChatTab from "./components/ChatTab";
 import ConfigScreen from "./components/ConfigScreen";
 
 export default function App() {
@@ -227,6 +229,12 @@ export default function App() {
               isSyncing={isSyncing}
             />
           )}
+          {activeTab === "chat" && (
+            <ChatTab 
+              key="chat"
+              onError={handleAIError}
+            />
+          )}
         </AnimatePresence>
       </main>
 
@@ -255,6 +263,12 @@ export default function App() {
           onClick={() => setActiveTab("grammar")} 
           icon={<FileText className="w-6 h-6" />} 
           label="Ngữ pháp" 
+        />
+        <NavButton 
+          active={activeTab === "chat"} 
+          onClick={() => setActiveTab("chat")} 
+          icon={<MessageCircle className="w-6 h-6" />} 
+          label="Trò chuyện" 
         />
       </nav>
     </div>

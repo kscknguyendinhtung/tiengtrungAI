@@ -312,10 +312,18 @@ export const geminiService = {
       Target word/sentence: "${targetChinese}"
       
       Requirements:
-      1. Transcribe what the user said (recognizedText).
-      2. Compare it with the target word/sentence.
+      1. Transcribe what the user said (recognizedText). 
+         - IMPORTANT: If the audio is silent, contains only background noise, or no clear speech is detected, set recognizedText to "" and score to 0.
+      2. Compare the audio with the target word/sentence.
       3. Rate the pronunciation on a scale of 1 to 10 (score).
-      4. Provide brief feedback in Vietnamese (feedback).
+         - 10: Perfect pronunciation and correct tones.
+         - 7-9: Understandable but minor errors in tones or initials/finals.
+         - 4-6: Significant errors, barely understandable.
+         - 1-3: Completely wrong word or very poor pronunciation.
+         - 0: No speech detected or completely unrelated sounds.
+      4. Provide brief feedback in Vietnamese (feedback). Mention if the tones (thanh điệu) are correct or need improvement.
+      
+      Note on Homophones: Since Chinese has many homophones, focus on whether the user's pronunciation (initials, finals, and especially TONES) matches the target "${targetChinese}".
       
       Return JSON:
       {
