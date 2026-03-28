@@ -36,6 +36,14 @@ export interface GrammarPoint {
   example: string;
 }
 
+export interface GrammarQuizQuestion {
+  question: string; // The sentence with a blank (e.g., "我___吃饭。")
+  pinyin: string;   // Pinyin for the question sentence
+  options: string[]; // 4 options
+  answer: string;    // The correct option
+  explanation: string; // Why this is the answer
+}
+
 export interface AppConfig {
   sheetUrl: string;
   scriptUrl: string;

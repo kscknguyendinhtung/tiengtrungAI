@@ -1,8 +1,9 @@
-import React from "react";
-import { Trash2, BookOpen, Upload, Volume2 } from "lucide-react";
-import { motion } from "motion/react";
-import { GrammarPoint } from "../types";
+import React, { useState, useRef } from "react";
+import { Trash2, BookOpen, Upload, Volume2, Image as ImageIcon, Brain, X, RefreshCw, CheckCircle2, AlertCircle } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import { GrammarPoint, GrammarQuizQuestion } from "../types";
 import { ttsService } from "../services/ttsService";
+import { geminiService } from "../services/geminiService";
 
 interface Props {
   points: GrammarPoint[];
@@ -13,6 +14,16 @@ interface Props {
 }
 
 export default function GrammarTab({ points, setPoints, onUpload, isSyncing }: Props) {
+  const [isScanning, setIsScanning] = useState(false);
+  const [showQuiz, setShowQuiz] = useState(false);
+  const [quizQuestions, setQuizQuestions] = useState<GrammarQuizQuestion[]>([]);
+  const [currentQuizIndex, setCurrentQuizIndex] = useState(0);
+  const [score, setScore] = useState(0);
+  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
+  const [showExplanation, setShowExplanation] = useState(false);
+  const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const deletePoint = (index: number) => {
     if (confirm("Xóa mục này?")) {
       setPoints(points.filter((_, i) => i !== index));
@@ -20,9 +31,68 @@ export default function GrammarTab({ points, setPoints, onUpload, isSyncing }: P
   };
 
   const speak = (text: string) => {
-    // Basic regex to extract Chinese characters from the example string if it contains Vietnamese/Pinyin
-    // However, usually the example field in GrammarPoint is the Chinese sentence.
     ttsService.speak(text, "zh-CN");
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsScanning(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const base64 = event.target?.result as string;
+        const newPoints = await geminiService.performGrammarOCR(base64);
+        setPoints(prev => [...prev, ...newPoints]);
+        setIsScanning(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error("Grammar OCR Error:", error);
+      alert("Có lỗi xảy ra khi quét ảnh ngữ pháp.");
+      setIsScanning(false);
+    }
+  };
+
+  const startQuiz = async () => {
+    if (points.length < 2) {
+      alert("Cần ít nhất 2 cấu trúc ngữ pháp để tạo bài test.");
+      return;
+    }
+    setIsGeneratingQuiz(true);
+    try {
+      const questions = await geminiService.generateGrammarQuiz(points);
+      setQuizQuestions(questions);
+      setCurrentQuizIndex(0);
+      setScore(0);
+      setSelectedAnswer(null);
+      setShowExplanation(false);
+      setShowQuiz(true);
+    } catch (error) {
+      alert("Không thể tạo bài test lúc này.");
+    } finally {
+      setIsGeneratingQuiz(false);
+    }
+  };
+
+  const handleAnswer = (option: string) => {
+    if (selectedAnswer) return;
+    setSelectedAnswer(option);
+    if (option === quizQuestions[currentQuizIndex].answer) {
+      setScore(prev => prev + 1);
+    }
+    setShowExplanation(true);
+  };
+
+  const nextQuestion = () => {
+    if (currentQuizIndex < quizQuestions.length - 1) {
+      setCurrentQuizIndex(prev => prev + 1);
+      setSelectedAnswer(null);
+      setShowExplanation(false);
+    } else {
+      // Quiz finished
+    }
   };
 
   return (
@@ -36,17 +106,43 @@ export default function GrammarTab({ points, setPoints, onUpload, isSyncing }: P
           <h2 className="text-2xl font-bold text-neutral-800">Phân tích Ngữ pháp</h2>
           <p className="text-neutral-500 text-sm">AI phân tích các cấu trúc quan trọng.</p>
         </div>
-        <button 
-          onClick={onUpload}
-          disabled={isSyncing}
-          className="p-3 bg-white border border-neutral-200 rounded-2xl text-neutral-600 hover:bg-neutral-50 disabled:opacity-50 shadow-sm"
-          title="Lưu lên Sheet"
-        >
-          <Upload className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isScanning}
+            className="p-3 bg-white border border-neutral-200 rounded-2xl text-emerald-600 hover:bg-neutral-50 disabled:opacity-50 shadow-sm"
+            title="Quét ảnh ngữ pháp"
+          >
+            {isScanning ? <RefreshCw className="w-5 h-5 animate-spin" /> : <ImageIcon className="w-5 h-5" />}
+          </button>
+          <button 
+            onClick={startQuiz}
+            disabled={isGeneratingQuiz || points.length === 0}
+            className="p-3 bg-emerald-600 text-white rounded-2xl hover:bg-emerald-700 disabled:opacity-50 shadow-lg shadow-emerald-100"
+            title="Làm bài test"
+          >
+            {isGeneratingQuiz ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Brain className="w-5 h-5" />}
+          </button>
+          <button 
+            onClick={onUpload}
+            disabled={isSyncing}
+            className="p-3 bg-white border border-neutral-200 rounded-2xl text-neutral-600 hover:bg-neutral-50 disabled:opacity-50 shadow-sm"
+            title="Lưu lên Sheet"
+          >
+            <Upload className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
-      <div className="space-y-4">
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        onChange={handleImageUpload} 
+        accept="image/*" 
+        className="hidden" 
+      />
+
+      <div className="space-y-4 pb-20">
         {points.map((point, i) => (
           <motion.div 
             key={i}
@@ -88,13 +184,116 @@ export default function GrammarTab({ points, setPoints, onUpload, isSyncing }: P
             </div>
           </motion.div>
         ))}
-        {points.length === 0 && (
+        {points.length === 0 && !isScanning && (
           <div className="text-center py-20 text-neutral-400">
             <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-20" />
-            Chưa có phân tích ngữ pháp. <br/> Hãy nhấn vào biểu tượng văn bản ở tab Luyện đọc.
+            Chưa có phân tích ngữ pháp. <br/> Hãy nhấn vào biểu tượng văn bản ở tab Luyện đọc <br/> hoặc quét ảnh ngữ pháp.
+          </div>
+        )}
+        {isScanning && (
+          <div className="text-center py-20 text-emerald-600 animate-pulse font-bold">
+            <RefreshCw className="w-12 h-12 mx-auto mb-4 animate-spin opacity-20" />
+            Đang quét ảnh ngữ pháp...
           </div>
         )}
       </div>
+
+      {/* Quiz Modal */}
+      <AnimatePresence>
+        {showQuiz && (
+          <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-6 backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden"
+            >
+              <button 
+                onClick={() => setShowQuiz(false)}
+                className="absolute top-6 right-6 p-2 text-neutral-400 hover:text-neutral-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-emerald-600 uppercase tracking-widest">Câu hỏi {currentQuizIndex + 1} / {quizQuestions.length}</span>
+                  <span className="text-xs font-bold text-neutral-400">Đúng: {score}</span>
+                </div>
+                <div className="w-full bg-neutral-100 h-1.5 rounded-full overflow-hidden">
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${((currentQuizIndex + 1) / quizQuestions.length) * 100}%` }}
+                    className="bg-emerald-500 h-full"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="text-center space-y-2">
+                  <div className="text-sm text-neutral-400 font-medium italic">{quizQuestions[currentQuizIndex].pinyin}</div>
+                  <div className="text-3xl font-bold text-neutral-800">{quizQuestions[currentQuizIndex].question}</div>
+                </div>
+
+                <div className="grid gap-3">
+                  {quizQuestions[currentQuizIndex].options.map((option, idx) => {
+                    const isCorrect = option === quizQuestions[currentQuizIndex].answer;
+                    const isSelected = option === selectedAnswer;
+                    
+                    let bgColor = "bg-neutral-50 border-neutral-100 hover:bg-neutral-100";
+                    let textColor = "text-neutral-700";
+                    
+                    if (selectedAnswer) {
+                      if (isCorrect) {
+                        bgColor = "bg-emerald-100 border-emerald-200";
+                        textColor = "text-emerald-700";
+                      } else if (isSelected) {
+                        bgColor = "bg-red-100 border-red-200";
+                        textColor = "text-red-700";
+                      } else {
+                        bgColor = "bg-neutral-50 border-neutral-100 opacity-50";
+                      }
+                    }
+
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => handleAnswer(option)}
+                        disabled={!!selectedAnswer}
+                        className={`w-full p-4 rounded-2xl border-2 text-left font-bold transition-all flex items-center justify-between ${bgColor} ${textColor}`}
+                      >
+                        {option}
+                        {selectedAnswer && isCorrect && <CheckCircle2 className="w-5 h-5" />}
+                        {selectedAnswer && isSelected && !isCorrect && <AlertCircle className="w-5 h-5" />}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {showExplanation && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-blue-50 p-4 rounded-2xl border border-blue-100"
+                  >
+                    <div className="text-xs font-bold text-blue-600 uppercase mb-1">Giải thích</div>
+                    <p className="text-sm text-blue-800">{quizQuestions[currentQuizIndex].explanation}</p>
+                  </motion.div>
+                )}
+
+                {selectedAnswer && (
+                  <button 
+                    onClick={currentQuizIndex === quizQuestions.length - 1 ? () => setShowQuiz(false) : nextQuestion}
+                    className="w-full py-4 bg-neutral-800 text-white font-bold rounded-2xl shadow-lg hover:bg-neutral-900 transition-all"
+                  >
+                    {currentQuizIndex === quizQuestions.length - 1 ? "Hoàn thành" : "Tiếp theo"}
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

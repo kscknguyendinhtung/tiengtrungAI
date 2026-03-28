@@ -753,7 +753,10 @@ function FlashcardView({ list, onToggleMastered, onEdit, initialIndex = 0 }: { l
                 <div className="text-xl text-neutral-400 mt-4 italic font-bold" style={{ fontSize: '150%' }}>{currentItem.amBoi}</div>
               </>
             ) : (
-              <div className="text-4xl font-bold text-neutral-800">{currentItem.meaning}</div>
+              <>
+                <div className="text-4xl font-bold text-neutral-800 mb-2">{currentItem.meaning}</div>
+                <div className="text-xl text-neutral-400 font-medium">{currentItem.hanViet}</div>
+              </>
             )}
             <button 
               onClick={(e) => { e.stopPropagation(); speak(frontSide === "chinese" ? currentItem.chinese : currentItem.meaning, frontSide === "chinese" ? "zh-CN" : "vi-VN"); }}
@@ -768,7 +771,7 @@ function FlashcardView({ list, onToggleMastered, onEdit, initialIndex = 0 }: { l
             {frontSide === "chinese" ? (
               <>
                 <div className="text-3xl font-bold mb-2">{currentItem.meaning}</div>
-                <div className="text-lg opacity-80">{currentItem.hanViet}</div>
+                <div className="text-lg opacity-80 font-medium">{currentItem.hanViet}</div>
               </>
             ) : (
               <>

@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { OCRResult, Vocabulary, GrammarPoint } from "../types";
+import { OCRResult, Vocabulary, GrammarPoint, GrammarQuizQuestion } from "../types";
 
 const getAI = () => {
   const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY || "";
@@ -212,6 +212,91 @@ export const geminiService = {
       return JSON.parse(response.text || "[]");
     } catch (error) {
       console.error("Gemini Grammar Error:", error);
+      return [];
+    }
+  },
+
+  async performGrammarOCR(base64Image: string): Promise<GrammarPoint[]> {
+    const ai = getAI();
+    const model = "gemini-3-flash-preview";
+    const prompt = `
+      Phân tích hình ảnh chứa kiến thức ngữ pháp tiếng Trung sau.
+      
+      Yêu cầu:
+      1. Trích xuất các cấu trúc ngữ pháp quan trọng nhất xuất hiện trong ảnh.
+      2. Với mỗi cấu trúc, cung cấp:
+         - structure: Tên cấu trúc (Ví dụ: "S + V + O").
+         - explanation: Giải thích cách dùng bằng tiếng Việt.
+         - example: Một ví dụ minh họa đơn giản (có kèm Pinyin).
+      
+      Trả về JSON array các đối tượng GrammarPoint:
+      [
+        { "structure": "string", "explanation": "string", "example": "string" }
+      ]
+    `;
+
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: [
+          {
+            parts: [
+              { inlineData: { data: base64Image.split(",")[1], mimeType: "image/jpeg" } },
+              { text: prompt }
+            ]
+          }
+        ],
+        config: {
+          responseMimeType: "application/json"
+        }
+      });
+
+      return JSON.parse(response.text || "[]");
+    } catch (error) {
+      console.error("Gemini Grammar OCR Error:", error);
+      return [];
+    }
+  },
+
+  async generateGrammarQuiz(points: GrammarPoint[]): Promise<GrammarQuizQuestion[]> {
+    const ai = getAI();
+    const model = "gemini-3-flash-preview";
+    const prompt = `
+      Dựa trên danh sách các cấu trúc ngữ pháp sau, hãy tạo 5 câu hỏi trắc nghiệm để kiểm tra kiến thức:
+      ${JSON.stringify(points)}
+      
+      Yêu cầu:
+      1. Mỗi câu hỏi phải tập trung vào một cấu trúc ngữ pháp cụ thể.
+      2. Câu hỏi (question) là một câu tiếng Trung có chỗ trống (___).
+      3. Cung cấp Pinyin cho câu hỏi (question).
+      4. Cung cấp 4 lựa chọn (options).
+      5. Chỉ rõ đáp án đúng (answer).
+      6. Giải thích ngắn gọn tại sao chọn đáp án đó (explanation).
+      
+      Trả về JSON array các đối tượng GrammarQuizQuestion:
+      [
+        {
+          "question": "string",
+          "pinyin": "string",
+          "options": ["string", "string", "string", "string"],
+          "answer": "string",
+          "explanation": "string"
+        }
+      ]
+    `;
+
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json"
+        }
+      });
+
+      return JSON.parse(response.text || "[]");
+    } catch (error) {
+      console.error("Gemini Quiz Generation Error:", error);
       return [];
     }
   }
