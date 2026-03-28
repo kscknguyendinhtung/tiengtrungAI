@@ -23,7 +23,11 @@ import {
   Settings2,
   Image as ImageIcon,
   Type as TypeIcon,
-  FileText
+  FileText,
+  Mic,
+  Square,
+  Star,
+  Trophy
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Vocabulary } from "../types";
@@ -54,6 +58,13 @@ export default function VocabTab({ vocabList, setVocabList, onUpload, isSyncing,
   const [newWord, setNewWord] = useState("");
   const [newText, setNewText] = useState("");
   const [isAdding, setIsAdding] = useState(false);
+  const [showSpeakingGame, setShowSpeakingGame] = useState(false);
+  const [currentSpeakingIndex, setCurrentSpeakingIndex] = useState(0);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isEvaluating, setIsEvaluating] = useState(false);
+  const [evaluationResult, setEvaluationResult] = useState<{ score: number; feedback: string; recognizedText: string } | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Dynamic Word Types and Topics
@@ -221,6 +232,71 @@ export default function VocabTab({ vocabList, setVocabList, onUpload, isSyncing,
     setEditingItem(null);
   };
 
+  const startSpeakingGame = () => {
+    if (filteredList.length === 0) {
+      alert("Danh sách từ vựng trống.");
+      return;
+    }
+    setCurrentSpeakingIndex(0);
+    setEvaluationResult(null);
+    setShowSpeakingGame(true);
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        audioChunksRef.current.push(event.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const base64Audio = (reader.result as string).split(',')[1];
+          setIsEvaluating(true);
+          try {
+            const result = await geminiService.evaluateSpeech(base64Audio, filteredList[currentSpeakingIndex].chinese);
+            setEvaluationResult(result);
+          } catch (error) {
+            alert("Lỗi khi đánh giá giọng nói.");
+          } finally {
+            setIsEvaluating(false);
+          }
+        };
+        reader.readAsDataURL(audioBlob);
+        
+        // Stop all tracks
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (error) {
+      alert("Không thể truy cập micro.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const nextSpeakingWord = () => {
+    if (currentSpeakingIndex < filteredList.length - 1) {
+      setCurrentSpeakingIndex(prev => prev + 1);
+      setEvaluationResult(null);
+    } else {
+      setShowSpeakingGame(false);
+    }
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0 }}
@@ -299,6 +375,13 @@ export default function VocabTab({ vocabList, setVocabList, onUpload, isSyncing,
             </div>
           </div>
           
+          <button 
+            onClick={startSpeakingGame}
+            className="p-2 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-100"
+            title="Luyện nói"
+          >
+            <Mic className="w-6 h-6" />
+          </button>
           <button 
             onClick={onUpload}
             disabled={isSyncing}
@@ -557,7 +640,140 @@ export default function VocabTab({ vocabList, setVocabList, onUpload, isSyncing,
           </motion.div>
         </div>
       )}
+
+      {/* Speaking Game Modal */}
+      <SpeakingGameModal 
+        show={showSpeakingGame}
+        onClose={() => setShowSpeakingGame(false)}
+        list={filteredList}
+        currentIndex={currentSpeakingIndex}
+        onNext={nextSpeakingWord}
+        isRecording={isRecording}
+        startRecording={startRecording}
+        stopRecording={stopRecording}
+        isEvaluating={isEvaluating}
+        evaluationResult={evaluationResult}
+        onRetry={() => setEvaluationResult(null)}
+      />
     </motion.div>
+  );
+}
+
+function SpeakingGameModal({ 
+  show, 
+  onClose, 
+  list, 
+  currentIndex, 
+  onNext, 
+  isRecording, 
+  startRecording, 
+  stopRecording, 
+  isEvaluating, 
+  evaluationResult,
+  onRetry
+}: { 
+  show: boolean; 
+  onClose: () => void; 
+  list: Vocabulary[]; 
+  currentIndex: number; 
+  onNext: () => void; 
+  isRecording: boolean; 
+  startRecording: () => void; 
+  stopRecording: () => void; 
+  isEvaluating: boolean; 
+  evaluationResult: any;
+  onRetry: () => void;
+}) {
+  if (!show || list.length === 0) return null;
+  const currentItem = list[currentIndex];
+
+  return (
+    <AnimatePresence>
+      <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-6 backdrop-blur-sm">
+        <motion.div 
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.9, opacity: 0 }}
+          className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden flex flex-col items-center"
+        >
+          <button 
+            onClick={onClose}
+            className="absolute top-6 right-6 p-2 text-neutral-400 hover:text-neutral-600"
+          >
+            <X className="w-6 h-6" />
+          </button>
+
+          <div className="mb-8 text-center">
+            <div className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-2">Luyện nói {currentIndex + 1} / {list.length}</div>
+            <div className="text-sm text-neutral-400 mb-1">Hãy nói từ tiếng Trung có nghĩa là:</div>
+            <div className="text-3xl font-bold text-neutral-800">{currentItem.meaning}</div>
+          </div>
+
+          <div className="flex flex-col items-center gap-6 w-full">
+            <div className="relative">
+              <motion.button
+                animate={isRecording ? { scale: [1, 1.2, 1] } : {}}
+                transition={isRecording ? { repeat: Infinity, duration: 1.5 } : {}}
+                onClick={isRecording ? stopRecording : startRecording}
+                disabled={isEvaluating}
+                className={`w-24 h-24 rounded-full flex items-center justify-center shadow-xl transition-all ${
+                  isRecording ? 'bg-red-500 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'
+                } disabled:opacity-50`}
+              >
+                {isRecording ? <Square className="w-10 h-10" /> : <Mic className="w-10 h-10" />}
+              </motion.button>
+              {isRecording && (
+                <div className="absolute -inset-4 border-4 border-red-500/30 rounded-full animate-ping" />
+              )}
+            </div>
+
+            {isEvaluating && (
+              <div className="flex items-center gap-2 text-blue-600 font-bold animate-pulse">
+                <RefreshCw className="w-5 h-5 animate-spin" />
+                AI đang đánh giá...
+              </div>
+            )}
+
+            {evaluationResult && (
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="w-full space-y-4"
+              >
+                <div className="bg-neutral-50 p-6 rounded-3xl border border-neutral-100 text-center">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <Trophy className="w-6 h-6 text-yellow-500" />
+                    <span className="text-4xl font-black text-neutral-800">{evaluationResult.score}</span>
+                    <span className="text-xl text-neutral-400">/ 10</span>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="text-sm text-neutral-400">Bạn đã nói:</div>
+                    <div className="text-xl font-bold text-blue-600">{evaluationResult.recognizedText || "---"}</div>
+                    <div className="text-sm text-neutral-600 italic">"{evaluationResult.feedback}"</div>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button 
+                    onClick={onRetry}
+                    className="flex-1 py-4 bg-neutral-100 text-neutral-600 font-bold rounded-2xl hover:bg-neutral-200 transition-all"
+                  >
+                    Thử lại
+                  </button>
+                  <button 
+                    onClick={onNext}
+                    className="flex-1 py-4 bg-neutral-800 text-white font-bold rounded-2xl shadow-lg hover:bg-neutral-900 transition-all"
+                  >
+                    {currentIndex === list.length - 1 ? "Hoàn thành" : "Tiếp theo"}
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </div>
+        </motion.div>
+      </div>
+    </AnimatePresence>
   );
 }
 

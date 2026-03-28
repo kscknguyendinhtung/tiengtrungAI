@@ -301,5 +301,50 @@ export const geminiService = {
       console.error("Gemini Quiz Generation Error:", error);
       return [];
     }
+  },
+
+  async evaluateSpeech(base64Audio: string, targetChinese: string): Promise<{ score: number; feedback: string; recognizedText: string }> {
+    const ai = getAI();
+    // Using gemini-3.1-flash-lite-preview as requested for quota efficiency
+    const model = "gemini-3.1-flash-lite-preview";
+    const prompt = `
+      Evaluate the Chinese pronunciation in this audio.
+      Target word/sentence: "${targetChinese}"
+      
+      Requirements:
+      1. Transcribe what the user said (recognizedText).
+      2. Compare it with the target word/sentence.
+      3. Rate the pronunciation on a scale of 1 to 10 (score).
+      4. Provide brief feedback in Vietnamese (feedback).
+      
+      Return JSON:
+      {
+        "score": number,
+        "feedback": "string",
+        "recognizedText": "string"
+      }
+    `;
+
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: [
+          {
+            parts: [
+              { inlineData: { data: base64Audio, mimeType: "audio/webm" } },
+              { text: prompt }
+            ]
+          }
+        ],
+        config: {
+          responseMimeType: "application/json"
+        }
+      });
+
+      return JSON.parse(response.text || "{}");
+    } catch (error) {
+      console.error("Gemini Speech Evaluation Error:", error);
+      return { score: 0, feedback: "Lỗi khi đánh giá giọng nói.", recognizedText: "" };
+    }
   }
 };
