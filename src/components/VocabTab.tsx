@@ -232,12 +232,12 @@ export default function VocabTab({ vocabList, setVocabList, onUpload, isSyncing,
     setEditingItem(null);
   };
 
-  const startSpeakingGame = () => {
+  const startSpeakingGame = (index?: number) => {
     if (filteredList.length === 0) {
       alert("Danh sách từ vựng trống.");
       return;
     }
-    setCurrentSpeakingIndex(0);
+    setCurrentSpeakingIndex(index !== undefined ? index : 0);
     setEvaluationResult(null);
     setShowSpeakingGame(true);
   };
@@ -250,7 +250,9 @@ export default function VocabTab({ vocabList, setVocabList, onUpload, isSyncing,
       audioChunksRef.current = [];
 
       mediaRecorder.ondataavailable = (event) => {
-        audioChunksRef.current.push(event.data);
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
       };
 
       mediaRecorder.onstop = async () => {
@@ -282,7 +284,7 @@ export default function VocabTab({ vocabList, setVocabList, onUpload, isSyncing,
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
     }
@@ -443,6 +445,7 @@ export default function VocabTab({ vocabList, setVocabList, onUpload, isSyncing,
             onDelete={deleteWordByWord}
             onEdit={handleEdit}
             onSelect={handleSelectWord}
+            onStartSpeaking={startSpeakingGame}
           />
         ) : (
           <FlashcardView 
@@ -451,6 +454,7 @@ export default function VocabTab({ vocabList, setVocabList, onUpload, isSyncing,
             onToggleMastered={toggleMasteredByWord}
             onEdit={handleEdit}
             initialIndex={initialFlashcardIndex}
+            onStartSpeaking={startSpeakingGame}
           />
         )}
       </AnimatePresence>
@@ -777,7 +781,7 @@ function SpeakingGameModal({
   );
 }
 
-function TableView({ list, onToggleMastered, onDelete, onEdit, onSelect }: { list: Vocabulary[], onToggleMastered: (word: string) => void, onDelete: (word: string) => void, onEdit: (item: Vocabulary) => void, onSelect: (item: Vocabulary) => void, key?: string }) {
+function TableView({ list, onToggleMastered, onDelete, onEdit, onSelect, onStartSpeaking }: { list: Vocabulary[], onToggleMastered: (word: string) => void, onDelete: (word: string) => void, onEdit: (item: Vocabulary) => void, onSelect: (item: Vocabulary) => void, onStartSpeaking: (index: number) => void, key?: string }) {
   return (
     <motion.div 
       initial={{ opacity: 0, y: 10 }}
@@ -801,6 +805,13 @@ function TableView({ list, onToggleMastered, onDelete, onEdit, onSelect }: { lis
             <div className="text-[10px] text-neutral-400 mt-1 uppercase tracking-wider font-bold">{item.topic} • {item.wordType}</div>
           </div>
           <div className="flex items-center gap-1">
+            <button 
+              onClick={() => onStartSpeaking(i)}
+              className="p-2 text-neutral-300 hover:text-blue-500"
+              title="Luyện nói"
+            >
+              <Mic className="w-4 h-4" />
+            </button>
             <button onClick={() => onEdit(item)} className="p-2 text-neutral-300 hover:text-emerald-500">
               <Edit2 className="w-4 h-4" />
             </button>
@@ -817,7 +828,7 @@ function TableView({ list, onToggleMastered, onDelete, onEdit, onSelect }: { lis
   );
 }
 
-function FlashcardView({ list, onToggleMastered, onEdit, initialIndex = 0 }: { list: Vocabulary[], onToggleMastered: (word: string) => void, onEdit: (item: Vocabulary) => void, initialIndex?: number, key?: string }) {
+function FlashcardView({ list, onToggleMastered, onEdit, onStartSpeaking, initialIndex = 0 }: { list: Vocabulary[], onToggleMastered: (word: string) => void, onEdit: (item: Vocabulary) => void, onStartSpeaking: (index: number) => void, initialIndex?: number, key?: string }) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [isFlipped, setIsFlipped] = useState(false);
   const [shuffleOrder, setShuffleOrder] = useState<number[]>([]);
@@ -1011,6 +1022,13 @@ function FlashcardView({ list, onToggleMastered, onEdit, initialIndex = 0 }: { l
 
       <div className="flex items-center justify-center gap-6">
         <button onClick={prevCard} className="p-4 bg-white rounded-full shadow-md text-neutral-600"><ChevronLeft className="w-8 h-8" /></button>
+        <button 
+          onClick={() => onStartSpeaking(displayIndex)}
+          className="p-4 bg-white rounded-full shadow-md text-blue-600 hover:bg-blue-50 transition-all"
+          title="Luyện nói"
+        >
+          <Mic className="w-8 h-8" />
+        </button>
         <button 
           onClick={() => onToggleMastered(currentItem.chinese)}
           className={`p-4 rounded-full shadow-md transition-all ${currentItem.isMastered ? 'bg-emerald-100 text-emerald-600' : 'bg-white text-neutral-300'}`}
