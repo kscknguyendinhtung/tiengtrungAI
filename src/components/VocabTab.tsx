@@ -65,6 +65,7 @@ export default function VocabTab({ vocabList, setVocabList, onUpload, isSyncing,
   const [evaluationResult, setEvaluationResult] = useState<{ score: number; feedback: string; recognizedText: string } | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Dynamic Word Types and Topics
@@ -258,6 +259,10 @@ export default function VocabTab({ vocabList, setVocabList, onUpload, isSyncing,
 
       mediaRecorder.onstop = async () => {
         setIsRecording(false);
+        if (recordingTimeoutRef.current) {
+          clearTimeout(recordingTimeoutRef.current);
+          recordingTimeoutRef.current = null;
+        }
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         const reader = new FileReader();
         reader.onloadend = async () => {
@@ -280,6 +285,11 @@ export default function VocabTab({ vocabList, setVocabList, onUpload, isSyncing,
 
       mediaRecorder.start(1000); // Collect data every second
       setIsRecording(true);
+
+      // Auto stop after 3 seconds
+      recordingTimeoutRef.current = setTimeout(() => {
+        stopRecording();
+      }, 3000);
     } catch (error) {
       console.error("Microphone access error:", error);
       alert("Không thể truy cập micro. Vui lòng kiểm tra quyền truy cập.");
@@ -287,6 +297,10 @@ export default function VocabTab({ vocabList, setVocabList, onUpload, isSyncing,
   };
 
   const stopRecording = () => {
+    if (recordingTimeoutRef.current) {
+      clearTimeout(recordingTimeoutRef.current);
+      recordingTimeoutRef.current = null;
+    }
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
       try {
         mediaRecorderRef.current.stop();
@@ -670,7 +684,8 @@ export default function VocabTab({ vocabList, setVocabList, onUpload, isSyncing,
             currentIndex={currentSpeakingIndex}
             onNext={nextSpeakingWord}
             isRecording={isRecording}
-            onToggleRecording={toggleRecording}
+            startRecording={startRecording}
+            stopRecording={stopRecording}
             isEvaluating={isEvaluating}
             evaluationResult={evaluationResult}
             onRetry={() => setEvaluationResult(null)}
@@ -688,7 +703,8 @@ function SpeakingGameModal({
   currentIndex, 
   onNext, 
   isRecording, 
-  onToggleRecording, 
+  startRecording, 
+  stopRecording, 
   isEvaluating, 
   evaluationResult,
   onRetry
@@ -699,7 +715,8 @@ function SpeakingGameModal({
   currentIndex: number; 
   onNext: () => void; 
   isRecording: boolean; 
-  onToggleRecording: () => void; 
+  startRecording: () => void; 
+  stopRecording: () => void; 
   isEvaluating: boolean; 
   evaluationResult: any;
   onRetry: () => void;
@@ -729,27 +746,46 @@ function SpeakingGameModal({
         </div>
 
         <div className="flex flex-col items-center gap-6 w-full">
-          <div className="relative">
-            <motion.button
-              animate={isRecording ? { scale: [1, 1.2, 1] } : {}}
-              transition={isRecording ? { repeat: Infinity, duration: 1.5 } : {}}
-              onClick={onToggleRecording}
-              disabled={isEvaluating}
-              className={`w-24 h-24 rounded-full flex items-center justify-center shadow-xl transition-all ${
-                isRecording ? 'bg-red-500 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'
-              } disabled:opacity-50`}
-            >
-              {isRecording ? <Square className="w-10 h-10" /> : <Mic className="w-10 h-10" />}
-            </motion.button>
-            {isRecording && (
-              <div className="absolute -inset-4 border-4 border-red-500/30 rounded-full animate-ping" />
-            )}
-          </div>
+          {!evaluationResult && !isEvaluating && (
+            <div className="flex flex-col items-center gap-4">
+              <div className="relative">
+                <motion.button
+                  animate={isRecording ? { scale: [1, 1.1, 1] } : {}}
+                  transition={isRecording ? { repeat: Infinity, duration: 1.5 } : {}}
+                  onClick={isRecording ? stopRecording : startRecording}
+                  className={`w-24 h-24 rounded-full flex items-center justify-center shadow-xl transition-all ${
+                    isRecording ? 'bg-red-500 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+                >
+                  {isRecording ? <Square className="w-10 h-10" /> : <Mic className="w-10 h-10" />}
+                </motion.button>
+                {isRecording && (
+                  <div className="absolute -inset-4 border-4 border-red-500/30 rounded-full animate-ping" />
+                )}
+              </div>
+              
+              <div className="text-center">
+                <p className={`text-sm font-bold ${isRecording ? 'text-red-500' : 'text-neutral-400'}`}>
+                  {isRecording ? "Đang ghi âm (Tự dừng sau 3s)..." : "Bấm để bắt đầu nói"}
+                </p>
+                {isRecording && (
+                  <button 
+                    onClick={stopRecording}
+                    className="mt-4 px-6 py-2 bg-red-100 text-red-600 rounded-full font-bold hover:bg-red-200 transition-all"
+                  >
+                    Dừng ngay
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {isEvaluating && (
-            <div className="flex items-center gap-2 text-blue-600 font-bold animate-pulse">
-              <RefreshCw className="w-5 h-5 animate-spin" />
-              AI đang đánh giá...
+            <div className="flex flex-col items-center gap-4 py-8">
+              <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+              <div className="text-blue-600 font-bold animate-pulse">
+                AI đang đánh giá...
+              </div>
             </div>
           )}
 
