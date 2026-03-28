@@ -20,6 +20,7 @@ export default function GrammarTab({ points, setPoints, onUpload, isSyncing }: P
   const [currentQuizIndex, setCurrentQuizIndex] = useState(0);
   const [score, setScore] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
+  const [userOrdering, setUserOrdering] = useState<string[]>([]);
   const [showExplanation, setShowExplanation] = useState(false);
   const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -67,6 +68,7 @@ export default function GrammarTab({ points, setPoints, onUpload, isSyncing }: P
       setCurrentQuizIndex(0);
       setScore(0);
       setSelectedAnswer(null);
+      setUserOrdering([]);
       setShowExplanation(false);
       setShowQuiz(true);
     } catch (error) {
@@ -85,10 +87,31 @@ export default function GrammarTab({ points, setPoints, onUpload, isSyncing }: P
     setShowExplanation(true);
   };
 
+  const handleOrderingClick = (word: string) => {
+    if (selectedAnswer) return;
+    if (userOrdering.includes(word)) {
+      setUserOrdering(prev => prev.filter(w => w !== word));
+    } else {
+      const newOrdering = [...userOrdering, word];
+      setUserOrdering(newOrdering);
+      
+      // Check if all words are selected
+      if (newOrdering.length === quizQuestions[currentQuizIndex].options.length) {
+        const finalSentence = newOrdering.join("");
+        setSelectedAnswer(finalSentence);
+        if (finalSentence === quizQuestions[currentQuizIndex].answer) {
+          setScore(prev => prev + 1);
+        }
+        setShowExplanation(true);
+      }
+    }
+  };
+
   const nextQuestion = () => {
     if (currentQuizIndex < quizQuestions.length - 1) {
       setCurrentQuizIndex(prev => prev + 1);
       setSelectedAnswer(null);
+      setUserOrdering([]);
       setShowExplanation(false);
     } else {
       // Quiz finished
@@ -232,42 +255,86 @@ export default function GrammarTab({ points, setPoints, onUpload, isSyncing }: P
               <div className="space-y-6">
                 <div className="text-center space-y-2">
                   <div className="text-sm text-neutral-400 font-medium italic">{quizQuestions[currentQuizIndex].pinyin}</div>
-                  <div className="text-3xl font-bold text-neutral-800">{quizQuestions[currentQuizIndex].question}</div>
+                  <div className="text-3xl font-bold text-neutral-800">
+                    {quizQuestions[currentQuizIndex].type === "ordering" ? "Sắp xếp các từ sau:" : quizQuestions[currentQuizIndex].question}
+                  </div>
                 </div>
 
-                <div className="grid gap-3">
-                  {quizQuestions[currentQuizIndex].options.map((option, idx) => {
-                    const isCorrect = option === quizQuestions[currentQuizIndex].answer;
-                    const isSelected = option === selectedAnswer;
-                    
-                    let bgColor = "bg-neutral-50 border-neutral-100 hover:bg-neutral-100";
-                    let textColor = "text-neutral-700";
-                    
-                    if (selectedAnswer) {
-                      if (isCorrect) {
-                        bgColor = "bg-emerald-100 border-emerald-200";
-                        textColor = "text-emerald-700";
-                      } else if (isSelected) {
-                        bgColor = "bg-red-100 border-red-200";
-                        textColor = "text-red-700";
-                      } else {
-                        bgColor = "bg-neutral-50 border-neutral-100 opacity-50";
-                      }
-                    }
-
-                    return (
-                      <button
+                {quizQuestions[currentQuizIndex].type === "ordering" && (
+                  <div className="min-h-[60px] p-4 bg-neutral-50 rounded-2xl border-2 border-dashed border-neutral-200 flex flex-wrap gap-2 items-center justify-center">
+                    {userOrdering.map((word, idx) => (
+                      <motion.span 
                         key={idx}
-                        onClick={() => handleAnswer(option)}
-                        disabled={!!selectedAnswer}
-                        className={`w-full p-4 rounded-2xl border-2 text-left font-bold transition-all flex items-center justify-between ${bgColor} ${textColor}`}
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="px-3 py-1 bg-emerald-600 text-white rounded-lg font-bold"
                       >
-                        {option}
-                        {selectedAnswer && isCorrect && <CheckCircle2 className="w-5 h-5" />}
-                        {selectedAnswer && isSelected && !isCorrect && <AlertCircle className="w-5 h-5" />}
-                      </button>
-                    );
-                  })}
+                        {word}
+                      </motion.span>
+                    ))}
+                    {userOrdering.length === 0 && <span className="text-neutral-300 text-sm">Chưa có từ nào được chọn</span>}
+                  </div>
+                )}
+
+                <div className="grid gap-3">
+                  {quizQuestions[currentQuizIndex].type === "multiple-choice" ? (
+                    quizQuestions[currentQuizIndex].options.map((option, idx) => {
+                      const isCorrect = option === quizQuestions[currentQuizIndex].answer;
+                      const isSelected = option === selectedAnswer;
+                      const pinyin = quizQuestions[currentQuizIndex].optionPinyins?.[idx];
+                      
+                      let bgColor = "bg-neutral-50 border-neutral-100 hover:bg-neutral-100";
+                      let textColor = "text-neutral-700";
+                      
+                      if (selectedAnswer) {
+                        if (isCorrect) {
+                          bgColor = "bg-emerald-100 border-emerald-200";
+                          textColor = "text-emerald-700";
+                        } else if (isSelected) {
+                          bgColor = "bg-red-100 border-red-200";
+                          textColor = "text-red-700";
+                        } else {
+                          bgColor = "bg-neutral-50 border-neutral-100 opacity-50";
+                        }
+                      }
+
+                      return (
+                        <button
+                          key={idx}
+                          onClick={() => handleAnswer(option)}
+                          disabled={!!selectedAnswer}
+                          className={`w-full p-4 rounded-2xl border-2 text-left transition-all flex items-center justify-between ${bgColor} ${textColor}`}
+                        >
+                          <div className="flex flex-col">
+                            {pinyin && <span className="text-[10px] opacity-60 italic">{pinyin}</span>}
+                            <span className="font-bold">{option}</span>
+                          </div>
+                          {selectedAnswer && isCorrect && <CheckCircle2 className="w-5 h-5" />}
+                          {selectedAnswer && isSelected && !isCorrect && <AlertCircle className="w-5 h-5" />}
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      {quizQuestions[currentQuizIndex].options.map((word, idx) => {
+                        const isUsed = userOrdering.includes(word);
+                        return (
+                          <button
+                            key={idx}
+                            onClick={() => handleOrderingClick(word)}
+                            disabled={!!selectedAnswer || isUsed}
+                            className={`px-4 py-2 rounded-xl border-2 font-bold transition-all ${
+                              isUsed 
+                                ? 'bg-neutral-100 border-neutral-200 text-neutral-300' 
+                                : 'bg-white border-neutral-200 text-neutral-700 hover:border-emerald-500'
+                            }`}
+                          >
+                            {word}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 {showExplanation && (
@@ -276,7 +343,8 @@ export default function GrammarTab({ points, setPoints, onUpload, isSyncing }: P
                     animate={{ opacity: 1, y: 0 }}
                     className="bg-blue-50 p-4 rounded-2xl border border-blue-100"
                   >
-                    <div className="text-xs font-bold text-blue-600 uppercase mb-1">Giải thích</div>
+                    <div className="text-xs font-bold text-blue-600 uppercase mb-1">Giải thích & Đáp án</div>
+                    <div className="text-sm font-bold text-emerald-700 mb-1">{quizQuestions[currentQuizIndex].answer}</div>
                     <p className="text-sm text-blue-800">{quizQuestions[currentQuizIndex].explanation}</p>
                   </motion.div>
                 )}

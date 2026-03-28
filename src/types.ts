@@ -37,10 +37,12 @@ export interface GrammarPoint {
 }
 
 export interface GrammarQuizQuestion {
-  question: string; // The sentence with a blank (e.g., "我___吃饭。")
+  type: "multiple-choice" | "ordering";
+  question: string; // The sentence with a blank (multiple-choice) OR the full sentence (ordering)
   pinyin: string;   // Pinyin for the question sentence
-  options: string[]; // 4 options
-  answer: string;    // The correct option
+  options: string[]; // 4 options (multiple-choice) OR scrambled words (ordering)
+  optionPinyins?: string[]; // Pinyin for each option (multiple-choice)
+  answer: string;    // The correct option (multiple-choice) OR the correct full sentence (ordering)
   explanation: string; // Why this is the answer
 }
 

@@ -267,18 +267,20 @@ export const geminiService = {
       
       Yêu cầu:
       1. Mỗi câu hỏi phải tập trung vào một cấu trúc ngữ pháp cụ thể.
-      2. Câu hỏi (question) là một câu tiếng Trung có chỗ trống (___).
-      3. Cung cấp Pinyin cho câu hỏi (question).
-      4. Cung cấp 4 lựa chọn (options).
-      5. Chỉ rõ đáp án đúng (answer).
-      6. Giải thích ngắn gọn tại sao chọn đáp án đó (explanation).
+      2. Bao gồm 2 loại câu hỏi:
+         - "multiple-choice": Một câu tiếng Trung có chỗ trống (___). Cung cấp 4 lựa chọn (options) và Pinyin cho từng lựa chọn (optionPinyins).
+         - "ordering": Một câu tiếng Trung hoàn chỉnh nhưng bị xáo trộn các từ/cụm từ. Cung cấp danh sách các từ bị xáo trộn trong "options". "answer" là câu hoàn chỉnh đúng.
+      3. Cung cấp Pinyin cho câu hỏi (question) và đáp án (answer).
+      4. Giải thích ngắn gọn tại sao chọn đáp án đó (explanation).
       
       Trả về JSON array các đối tượng GrammarQuizQuestion:
       [
         {
+          "type": "multiple-choice" | "ordering",
           "question": "string",
           "pinyin": "string",
           "options": ["string", "string", "string", "string"],
+          "optionPinyins": ["string", "string", "string", "string"], // Chỉ dành cho multiple-choice
           "answer": "string",
           "explanation": "string"
         }
