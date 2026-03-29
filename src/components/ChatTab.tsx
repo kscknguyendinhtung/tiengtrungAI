@@ -29,7 +29,7 @@ export default function ChatTab({ onError }: { onError: (error: any) => void | P
     return saved ? JSON.parse(saved) : [
       { 
         role: "model", 
-        text: "Chào bạn! Tôi là người bạn Trung Quốc của bạn. Chúng ta hãy cùng trò chuyện bằng tiếng Trung nhé!",
+        text: "你好！我是你的中国朋友。让我们用中文聊天吧！",
         pinyin: "Nǐ hǎo! Wǒ shì nǐ de Zhōngguó péngyǒu. Wǒmen ràng wǒmen yòng Zhōngwén liáotiān ba!",
         meaning: "Chào bạn! Tôi là người bạn Trung Quốc của bạn. Hãy để chúng ta trò chuyện bằng tiếng Trung nhé!"
       }
@@ -66,7 +66,7 @@ export default function ChatTab({ onError }: { onError: (error: any) => void | P
   const clearChat = () => {
     const initialMsg: Message = { 
       role: "model", 
-      text: "Chào bạn! Tôi là người bạn Trung Quốc của bạn. Chúng ta hãy cùng trò chuyện bằng tiếng Trung nhé!",
+      text: "你好！我是你的中国朋友。让我们用中文聊天吧！",
       pinyin: "Nǐ hǎo! Wǒ shì nǐ de Zhōngguó péngyǒu. Wǒmen ràng wǒmen yòng Zhōngwén liáotiān ba!",
       meaning: "Chào bạn! Tôi là người bạn Trung Quốc của bạn. Hãy để chúng ta trò chuyện bằng tiếng Trung nhé!"
     };
@@ -98,15 +98,16 @@ export default function ChatTab({ onError }: { onError: (error: any) => void | P
           Khi người dùng gửi tin nhắn (có thể là tiếng Trung hoặc tiếng Việt), hãy phản hồi bằng tiếng Trung một cách tự nhiên.
           
           QUAN TRỌNG: Bạn PHẢI trả về phản hồi dưới dạng JSON cho CẢ tin nhắn của người dùng vừa gửi và phản hồi của bạn.
+          Trường "chinese" PHẢI CHỈ CHỨA CHỮ HÁN (Chinese characters).
           Cấu trúc JSON:
           {
             "userMessage": {
-              "chinese": "Câu tiếng Trung tương ứng với những gì người dùng nói (nếu người dùng nói tiếng Việt thì dịch sang tiếng Trung, nếu nói tiếng Trung thì giữ nguyên)",
+              "chinese": "Câu tiếng Trung (chữ Hán) tương ứng với những gì người dùng nói",
               "pinyin": "Pinyin của câu tiếng Trung đó",
               "meaning": "Nghĩa tiếng Việt của câu đó"
             },
             "modelResponse": {
-              "chinese": "Câu trả lời của bạn bằng tiếng Trung",
+              "chinese": "Câu trả lời của bạn bằng chữ Hán",
               "pinyin": "Pinyin của câu trả lời đó",
               "meaning": "Nghĩa tiếng Việt của câu trả lời đó"
             }
@@ -155,6 +156,20 @@ export default function ChatTab({ onError }: { onError: (error: any) => void | P
     setTimeout(() => {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
+      
+      // Try to find a Chinese voice explicitly
+      const voices = window.speechSynthesis.getVoices();
+      const zhVoice = voices.find(v => 
+        v.lang.toLowerCase().includes("zh-cn") || 
+        v.lang.toLowerCase().includes("zh-tw") || 
+        v.lang.toLowerCase().includes("zh_cn") ||
+        v.name.toLowerCase().includes("chinese")
+      );
+      
+      if (zhVoice) {
+        utterance.voice = zhVoice;
+      }
+      
       utterance.lang = "zh-CN";
       utterance.rate = 0.9; // Slightly slower for better clarity
       window.speechSynthesis.speak(utterance);
