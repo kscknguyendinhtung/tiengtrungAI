@@ -21,7 +21,7 @@ interface Message {
   text: string;
 }
 
-export default function ChatTab({ onError }: { onError: (error: any) => void }) {
+export default function ChatTab({ onError }: { onError: (error: any) => void | Promise<any>; key?: string }) {
   const [mode, setMode] = useState<"text" | "voice">("text");
   const [messages, setMessages] = useState<Message[]>([
     { role: "model", text: "Chào bạn! Tôi là người bạn Trung Quốc của bạn. Chúng ta hãy cùng trò chuyện bằng tiếng Trung nhé! 你好！我是你的中国朋友。让我们用中文聊天吧！" }
@@ -80,9 +80,21 @@ export default function ChatTab({ onError }: { onError: (error: any) => void }) 
 
   // Live API Implementation
   const startLiveSession = async () => {
+    if (window.aistudio) {
+      const hasKey = await window.aistudio.hasSelectedApiKey();
+      if (!hasKey) {
+        alert("Tính năng Live Chat yêu cầu API Key cá nhân. Vui lòng chọn API Key để tiếp tục.");
+        await window.aistudio.openSelectKey();
+        return;
+      }
+    }
+
     setLiveStatus("connecting");
     try {
       const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY || "";
+      if (!apiKey) {
+        throw new Error("API Key không tìm thấy. Vui lòng cấu hình API Key.");
+      }
       const ai = new GoogleGenAI({ apiKey });
       
       const session = await ai.live.connect({
@@ -104,22 +116,29 @@ export default function ChatTab({ onError }: { onError: (error: any) => void }) 
           },
           onmessage: async (message: any) => {
             // Handle audio output
-            if (message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data) {
-              const base64Audio = message.serverContent.modelTurn.parts[0].inlineData.data;
-              playAudioChunk(base64Audio);
+            if (message.serverContent?.modelTurn?.parts) {
+              for (const part of message.serverContent.modelTurn.parts) {
+                if (part.inlineData?.data) {
+                  playAudioChunk(part.inlineData.data);
+                }
+                if (part.text) {
+                  setAiTranscription(prev => prev + part.text);
+                }
+              }
             }
             
-            // Handle transcription
-            if (message.serverContent?.modelTurn?.parts?.[0]?.text) {
-              setAiTranscription(prev => prev + " " + message.serverContent.modelTurn.parts[0].text);
+            // Handle separate transcription messages if they exist
+            if (message.serverContent?.outputTranscription) {
+              setAiTranscription(prev => prev + message.serverContent.outputTranscription);
             }
 
             if (message.serverContent?.interrupted) {
               stopAudioPlayback();
+              setAiTranscription(prev => prev + " [Bị ngắt lời]");
             }
             
             if (message.serverContent?.turnComplete) {
-              // Turn finished
+              // Reset transcription for next turn if needed, or keep it
             }
           },
           onclose: () => {
@@ -182,8 +201,14 @@ export default function ChatTab({ onError }: { onError: (error: any) => void }) 
           pcmData[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7FFF;
         }
         
-        // Convert to Base64
-        const base64Data = btoa(String.fromCharCode(...new Uint8Array(pcmData.buffer)));
+        // Convert to Base64 using a more robust method
+        const uint8Array = new Uint8Array(pcmData.buffer);
+        let binary = '';
+        const len = uint8Array.byteLength;
+        for (let i = 0; i < len; i++) {
+          binary += String.fromCharCode(uint8Array[i]);
+        }
+        const base64Data = btoa(binary);
         
         sessionRef.current.sendRealtimeInput({
           audio: { data: base64Data, mimeType: 'audio/pcm;rate=16000' }
@@ -194,21 +219,28 @@ export default function ChatTab({ onError }: { onError: (error: any) => void }) 
       processorRef.current.connect(audioContextRef.current.destination);
     } catch (error) {
       console.error("Audio capture error:", error);
+      setLiveStatus("error");
       onError(error);
     }
   };
 
   const playAudioChunk = (base64Data: string) => {
-    const binary = atob(base64Data);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-    const pcmData = new Int16Array(bytes.buffer);
-    audioQueueRef.current.push(pcmData);
-    
-    if (!isPlayingRef.current) {
-      processAudioQueue();
+    try {
+      const binary = atob(base64Data);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      
+      // Ensure the buffer is aligned for Int16Array
+      const pcmData = new Int16Array(bytes.buffer);
+      audioQueueRef.current.push(pcmData);
+      
+      if (!isPlayingRef.current) {
+        processAudioQueue();
+      }
+    } catch (error) {
+      console.error("Error playing audio chunk:", error);
     }
   };
 

@@ -305,27 +305,29 @@ export const geminiService = {
 
   async evaluateSpeech(base64Audio: string, targetChinese: string): Promise<{ score: number; feedback: string; recognizedText: string }> {
     const ai = getAI();
-    // Using gemini-3.1-flash-lite-preview as requested for quota efficiency
-    const model = "gemini-3.1-flash-lite-preview";
+    // Using gemini-3-flash-preview for better accuracy in evaluation
+    const model = "gemini-3-flash-preview";
     const prompt = `
-      Evaluate the Chinese pronunciation in this audio.
-      Target word/sentence: "${targetChinese}"
+      Bạn là một chuyên gia ngôn ngữ tiếng Trung. Hãy đánh giá phát âm của người dùng trong đoạn âm thanh đính kèm.
+      Từ/Câu mục tiêu: "${targetChinese}"
       
-      Requirements:
-      1. Transcribe what the user said (recognizedText). 
-         - IMPORTANT: If the audio is silent, contains only background noise, or no clear speech is detected, set recognizedText to "" and score to 0.
-      2. Compare the audio with the target word/sentence.
-      3. Rate the pronunciation on a scale of 1 to 10 (score).
-         - 10: Perfect pronunciation and correct tones.
-         - 7-9: Understandable but minor errors in tones or initials/finals.
-         - 4-6: Significant errors, barely understandable.
-         - 1-3: Completely wrong word or very poor pronunciation.
-         - 0: No speech detected or completely unrelated sounds.
-      4. Provide brief feedback in Vietnamese (feedback). Mention if the tones (thanh điệu) are correct or need improvement.
+      Yêu cầu đánh giá cực kỳ khắt khe:
+      1. Nhận diện văn bản (recognizedText): Ghi lại chính xác những gì người dùng đã nói. 
+         - Nếu im lặng hoặc chỉ có tiếng ồn: recognizedText = "", score = 0.
+      2. So sánh chi tiết:
+         - Thanh điệu (Tones): Đây là phần quan trọng nhất. Nếu sai thanh điệu, điểm không được quá 6.
+         - Phụ âm đầu và Vần (Initials & Finals): Kiểm tra độ tròn vành rõ chữ.
+      3. Chấm điểm (score) từ 0 đến 10:
+         - 10: Hoàn hảo, đúng cả âm và thanh điệu.
+         - 8-9: Rất tốt, hiểu rõ, sai sót cực nhỏ không đáng kể.
+         - 6-7: Hiểu được nhưng thanh điệu chưa chuẩn hoặc âm bị bẹt.
+         - 4-5: Sai nhiều, khó hiểu.
+         - 0-3: Sai hoàn toàn hoặc không nói gì.
+      4. Phản hồi (feedback): Nhận xét bằng tiếng Việt. Chỉ rõ lỗi ở thanh mấy, âm nào cần sửa. Ví dụ: "Bạn phát âm đúng chữ nhưng sai thanh 4 thành thanh 1".
       
-      Note on Homophones: Since Chinese has many homophones, focus on whether the user's pronunciation (initials, finals, and especially TONES) matches the target "${targetChinese}".
+      Lưu ý về từ đồng âm: Tập trung vào việc âm thanh người dùng phát ra có khớp với cách phát âm chuẩn của "${targetChinese}" hay không.
       
-      Return JSON:
+      Trả về JSON:
       {
         "score": number,
         "feedback": "string",
