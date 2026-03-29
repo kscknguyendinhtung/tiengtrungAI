@@ -24,22 +24,55 @@ interface Message {
 }
 
 export default function ChatTab({ onError }: { onError: (error: any) => void | Promise<any>; key?: string }) {
-  const [messages, setMessages] = useState<Message[]>([
-    { 
-      role: "model", 
-      text: "Chào bạn! Tôi là người bạn Trung Quốc của bạn. Chúng ta hãy cùng trò chuyện bằng tiếng Trung nhé!",
-      pinyin: "Nǐ hǎo! Wǒ shì nǐ de Zhōngguó péngyǒu. Wǒmen ràng wǒmen yòng Zhōngwén liáotiān ba!",
-      meaning: "Chào bạn! Tôi là người bạn Trung Quốc của bạn. Hãy để chúng ta trò chuyện bằng tiếng Trung nhé!"
-    }
-  ]);
+  const [messages, setMessages] = useState<Message[]>(() => {
+    const saved = localStorage.getItem("chat_history");
+    return saved ? JSON.parse(saved) : [
+      { 
+        role: "model", 
+        text: "Chào bạn! Tôi là người bạn Trung Quốc của bạn. Chúng ta hãy cùng trò chuyện bằng tiếng Trung nhé!",
+        pinyin: "Nǐ hǎo! Wǒ shì nǐ de Zhōngguó péngyǒu. Wǒmen ràng wǒmen yòng Zhōngwén liáotiān ba!",
+        meaning: "Chào bạn! Tôi là người bạn Trung Quốc của bạn. Hãy để chúng ta trò chuyện bằng tiếng Trung nhé!"
+      }
+    ];
+  });
   const [inputText, setInputText] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [isAutoSpeak, setIsAutoSpeak] = useState(() => {
+    return localStorage.getItem("auto_speak") === "true";
+  });
   
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const lastSpokenRef = useRef<number>(-1);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    localStorage.setItem("chat_history", JSON.stringify(messages));
+    localStorage.setItem("auto_speak", String(isAutoSpeak));
+
+    if (isAutoSpeak && messages.length > 0) {
+      const lastIndex = messages.length - 1;
+      const lastMsg = messages[lastIndex];
+      if (lastMsg.role === "model" && lastSpokenRef.current < lastIndex) {
+        speak(lastMsg.text);
+        lastSpokenRef.current = lastIndex;
+      }
+    }
+  }, [messages, isAutoSpeak]);
+
+  const clearChat = () => {
+    const initialMsg: Message = { 
+      role: "model", 
+      text: "Chào bạn! Tôi là người bạn Trung Quốc của bạn. Chúng ta hãy cùng trò chuyện bằng tiếng Trung nhé!",
+      pinyin: "Nǐ hǎo! Wǒ shì nǐ de Zhōngguó péngyǒu. Wǒmen ràng wǒmen yòng Zhōngwén liáotiān ba!",
+      meaning: "Chào bạn! Tôi là người bạn Trung Quốc của bạn. Hãy để chúng ta trò chuyện bằng tiếng Trung nhé!"
+    };
+    setMessages([initialMsg]);
+    lastSpokenRef.current = -1;
+    localStorage.removeItem("chat_history");
+  };
 
   const handleSendMessage = async () => {
     if (!inputText.trim() || isSending) return;
@@ -135,6 +168,27 @@ export default function ChatTab({ onError }: { onError: (error: any) => void | P
             <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest">Đang trực tuyến</p>
           </div>
         </div>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setIsAutoSpeak(!isAutoSpeak)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all ${
+              isAutoSpeak 
+                ? "bg-emerald-100 text-emerald-700 border border-emerald-200" 
+                : "bg-neutral-100 text-neutral-500 border border-neutral-200"
+            }`}
+            title={isAutoSpeak ? "Tắt tự động đọc" : "Bật tự động đọc"}
+          >
+            {isAutoSpeak ? <Volume2 className="w-3 h-3" /> : <VolumeX className="w-3 h-3" />}
+            {isAutoSpeak ? "Auto On" : "Auto Off"}
+          </button>
+          <button 
+            onClick={clearChat}
+            className="p-2 text-neutral-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
+            title="Xoá lịch sử chat"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
@@ -159,7 +213,7 @@ export default function ChatTab({ onError }: { onError: (error: any) => void | P
                 </div>
                 <button 
                   onClick={() => speak(msg.text)}
-                  className={`p-1 rounded-full transition-all opacity-0 group-hover:opacity-100 ${
+                  className={`p-1 rounded-full transition-all ${
                     msg.role === "user" ? "hover:bg-white/20 text-white" : "hover:bg-neutral-100 text-emerald-600"
                   }`}
                   title="Nghe phát âm"
