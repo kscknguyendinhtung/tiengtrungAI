@@ -55,7 +55,8 @@ export default function ChatTab({ onError }: { onError: (error: any) => void | P
     if (isAutoSpeak && messages.length > 0) {
       const lastIndex = messages.length - 1;
       const lastMsg = messages[lastIndex];
-      if (lastMsg.role === "model" && lastSpokenRef.current < lastIndex) {
+      // Only speak if it's a model message and we haven't spoken this specific index yet
+      if (lastMsg.role === "model" && lastSpokenRef.current !== lastIndex) {
         speak(lastMsg.text);
         lastSpokenRef.current = lastIndex;
       }
@@ -70,7 +71,7 @@ export default function ChatTab({ onError }: { onError: (error: any) => void | P
       meaning: "Chào bạn! Tôi là người bạn Trung Quốc của bạn. Hãy để chúng ta trò chuyện bằng tiếng Trung nhé!"
     };
     setMessages([initialMsg]);
-    lastSpokenRef.current = -1;
+    lastSpokenRef.current = 0; // Set to 0 because we don't want to auto-speak the initial message again on clear
     localStorage.removeItem("chat_history");
   };
 
@@ -149,10 +150,15 @@ export default function ChatTab({ onError }: { onError: (error: any) => void | P
 
   const speak = (text: string) => {
     if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "zh-CN";
-    window.speechSynthesis.speak(utterance);
+    
+    // Small delay to ensure browser speech engine is ready
+    setTimeout(() => {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = "zh-CN";
+      utterance.rate = 0.9; // Slightly slower for better clarity
+      window.speechSynthesis.speak(utterance);
+    }, 100);
   };
 
   return (
@@ -261,7 +267,7 @@ export default function ChatTab({ onError }: { onError: (error: any) => void | P
             onChange={(e) => setInputText(e.target.value)}
             onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
             placeholder="Nhập tiếng Trung hoặc tiếng Việt..."
-            className="flex-1 bg-transparent border-none focus:ring-0 text-sm px-2"
+            className="flex-1 bg-transparent border-none focus:ring-0 text-base px-2"
           />
           <button 
             onClick={handleSendMessage}
