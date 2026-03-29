@@ -54,7 +54,7 @@ export default function ChatTab({ onError }: { onError: (error: any) => void | P
       const ai = new GoogleGenAI({ apiKey });
       
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-3.1-flash-lite-preview",
         contents: [...messages, userMsg].map(m => ({
           role: m.role,
           parts: [{ text: m.text }]
@@ -114,6 +114,14 @@ export default function ChatTab({ onError }: { onError: (error: any) => void | P
     }
   };
 
+  const speak = (text: string) => {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "zh-CN";
+    window.speechSynthesis.speak(utterance);
+  };
+
   return (
     <div className="h-full flex flex-col bg-neutral-50 relative overflow-hidden">
       {/* Header */}
@@ -137,16 +145,27 @@ export default function ChatTab({ onError }: { onError: (error: any) => void | P
             animate={{ opacity: 1, y: 0 }}
             className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
           >
-            <div className={`max-w-[85%] p-4 rounded-3xl shadow-sm space-y-2 ${
+            <div className={`max-w-[85%] p-4 rounded-3xl shadow-sm space-y-2 relative group ${
               msg.role === "user" 
                 ? "bg-emerald-600 text-white rounded-tr-none" 
                 : "bg-white text-neutral-800 rounded-tl-none border border-neutral-100"
             }`}>
-              <div className="flex items-center gap-2 opacity-70">
-                {msg.role === "user" ? <User className="w-3 h-3" /> : <Bot className="w-3 h-3" />}
-                <span className="text-[10px] font-bold uppercase tracking-wider">
-                  {msg.role === "user" ? "Bạn" : "Tiểu Minh"}
-                </span>
+              <div className="flex items-center justify-between gap-2 opacity-70">
+                <div className="flex items-center gap-2">
+                  {msg.role === "user" ? <User className="w-3 h-3" /> : <Bot className="w-3 h-3" />}
+                  <span className="text-[10px] font-bold uppercase tracking-wider">
+                    {msg.role === "user" ? "Bạn" : "Tiểu Minh"}
+                  </span>
+                </div>
+                <button 
+                  onClick={() => speak(msg.text)}
+                  className={`p-1 rounded-full transition-all opacity-0 group-hover:opacity-100 ${
+                    msg.role === "user" ? "hover:bg-white/20 text-white" : "hover:bg-neutral-100 text-emerald-600"
+                  }`}
+                  title="Nghe phát âm"
+                >
+                  <Volume2 className="w-3.5 h-3.5" />
+                </button>
               </div>
               
               <div className="space-y-1">
