@@ -53,16 +53,30 @@ const MillionaireQuiz = ({ vocabList, filteredVocab, onBack, onError }: Milliona
     // Create Chinese utterance
     const zhUtterance = new SpeechSynthesisUtterance(zhText);
     zhUtterance.lang = 'zh-CN';
-    zhUtterance.rate = 0.9;
+    zhUtterance.rate = 0.85;
 
     // Create Vietnamese utterance
     const viUtterance = new SpeechSynthesisUtterance(viText);
     viUtterance.lang = 'vi-VN';
-    viUtterance.rate = 1.0;
+    viUtterance.rate = 0.95;
 
-    // Queue them
-    window.speechSynthesis.speak(zhUtterance);
-    window.speechSynthesis.speak(viUtterance);
+    if (quizMode === 'zh-vi') {
+      // Question is Chinese -> Read Chinese FIRST
+      zhUtterance.onend = () => {
+        setTimeout(() => {
+          if (status === 'playing') window.speechSynthesis.speak(viUtterance);
+        }, 200);
+      };
+      window.speechSynthesis.speak(zhUtterance);
+    } else {
+      // Question is Vietnamese -> Read Vietnamese FIRST
+      viUtterance.onend = () => {
+        setTimeout(() => {
+          if (status === 'playing') window.speechSynthesis.speak(zhUtterance);
+        }, 200);
+      };
+      window.speechSynthesis.speak(viUtterance);
+    }
   };
 
   const primeTTS = () => {
