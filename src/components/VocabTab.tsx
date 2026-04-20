@@ -41,15 +41,37 @@ interface Props {
   isSyncing: boolean;
   onError: (error: any) => Promise<boolean>;
   key?: string;
+  // Lifted Filters
+  searchQuery: string;
+  setSearchQuery: React.Dispatch<React.SetStateAction<string>>;
+  filterStatus: "all" | "mastered" | "unmastered";
+  setFilterStatus: React.Dispatch<React.SetStateAction<"all" | "mastered" | "unmastered">>;
+  sortOrder: "newest" | "alpha";
+  setSortOrder: React.Dispatch<React.SetStateAction<"newest" | "alpha">>;
+  selectedWordTypes: string[];
+  setSelectedWordTypes: React.Dispatch<React.SetStateAction<string[]>>;
+  selectedTopics: string[];
+  setSelectedTopics: React.Dispatch<React.SetStateAction<string[]>>;
 }
 
-export default function VocabTab({ vocabList, setVocabList, onUpload, isSyncing, onError }: Props) {
+export default function VocabTab({ 
+  vocabList, 
+  setVocabList, 
+  onUpload, 
+  isSyncing, 
+  onError,
+  searchQuery,
+  setSearchQuery,
+  filterStatus,
+  setFilterStatus,
+  sortOrder,
+  setSortOrder,
+  selectedWordTypes,
+  setSelectedWordTypes,
+  selectedTopics,
+  setSelectedTopics
+}: Props) {
   const [viewMode, setViewMode] = useState<"table" | "flashcard">("table");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filterStatus, setFilterStatus] = useState<"all" | "mastered" | "unmastered">("all");
-  const [sortOrder, setSortOrder] = useState<"newest" | "alpha">("newest");
-  const [selectedWordTypes, setSelectedWordTypes] = useState<string[]>([]);
-  const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingItem, setEditingItem] = useState<Vocabulary | null>(null);

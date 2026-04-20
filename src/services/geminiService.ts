@@ -356,5 +356,64 @@ export const geminiService = {
       console.error("Gemini Speech Evaluation Error:", error);
       return { score: 0, feedback: "Lỗi khi đánh giá giọng nói.", recognizedText: "" };
     }
+  },
+
+  async getRelatedWords(word: string, existingVocab: string[] = []): Promise<{
+    related: { chinese: string; pinyin: string; meaning: string; reason: string; hanViet: string }[];
+    antonyms: { chinese: string; pinyin: string; meaning: string; hanViet: string }[];
+    characterAnalysis: { char: string; components?: string; meaning: string; examples: { chinese: string; pinyin: string; meaning: string; hanViet: string }[] }[];
+  }> {
+    const ai = getAI();
+    const model = "gemini-3-flash-preview";
+    const vocabListStr = existingVocab.length > 0 ? `Danh sách từ vựng hiện có (ƯU TIÊN sử dụng các từ này nếu phù hợp): ${existingVocab.join(", ")}` : "";
+    
+    const prompt = `
+      Phân tích từ vựng tiếng Trung sau để hỗ trợ học tập mở rộng: "${word}".
+      ${vocabListStr}
+      
+      Yêu cầu:
+      1. related: Tìm 3-5 từ vựng liên quan hoặc có chứa các chữ Hán trong từ gốc. 
+         - QUAN TRỌNG: Chỉ lấy các từ vựng hoặc từ ghép ngắn. KHÔNG lấy các mẫu câu dài (7 chữ trở lên).
+         - Hãy kiểm tra danh sách từ vựng hiện có ở trên. Nếu có bất kỳ từ nào trong danh sách đó liên quan đến "${word}" hoặc chứa các chữ Hán của nó, hãy ƯU TIÊN đưa vào kết quả.
+         - Giải thích ngắn gọn tại sao nó liên quan (reason). Ví dụ: "Chứa chữ 'tiến' trong 'tiến độ'".
+         - Bao gồm cả hanViet cho mỗi từ.
+      2. antonyms: Tìm 2-3 từ trái nghĩa với từ gốc. Ưu tiên từ trong danh sách hiện có nếu có. KHÔNG lấy các mẫu câu dài.
+      3. characterAnalysis: Phân tích từng chữ Hán cấu thành nên từ gốc.
+         - Với mỗi chữ, cung cấp nghĩa và 2 ví dụ từ ghép khác có chứa chữ đó. Ưu tiên lấy ví dụ từ danh sách từ vựng hiện có. Ví dụ phải ngắn gọn (dưới 7 chữ).
+      
+      Trả về JSON theo cấu trúc:
+      {
+        "related": [
+          { "chinese": "string", "pinyin": "string", "meaning": "string", "reason": "string", "hanViet": "string" }
+        ],
+        "antonyms": [
+          { "chinese": "string", "pinyin": "string", "meaning": "string", "hanViet": "string" }
+        ],
+        "characterAnalysis": [
+          { 
+            "char": "string", 
+            "meaning": "string", 
+            "examples": [
+              { "chinese": "string", "pinyin": "string", "meaning": "string", "hanViet": "string" }
+            ]
+          }
+        ]
+      }
+    `;
+
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json"
+        }
+      });
+
+      return JSON.parse(response.text || "{}");
+    } catch (error) {
+      console.error("Gemini Related Words Error:", error);
+      return { related: [], antonyms: [], characterAnalysis: [] };
+    }
   }
 };

@@ -22,7 +22,9 @@ import VocabTab from "./components/VocabTab";
 import ReadingTab from "./components/ReadingTab";
 import GrammarTab from "./components/GrammarTab";
 import ChatTab from "./components/ChatTab";
+import GameTab from "./components/GameTab";
 import ConfigScreen from "./components/ConfigScreen";
+import { Sparkles, Gamepad2 } from "lucide-react";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>("ocr");
@@ -31,6 +33,13 @@ export default function App() {
   const [readingSentences, setReadingSentences] = useState<ReadingSentence[]>([]);
   const [grammarPoints, setGrammarPoints] = useState<GrammarPoint[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
+
+  // Filter States (Shared between Vocab and Game)
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterStatus, setFilterStatus] = useState<"all" | "mastered" | "unmastered">("all");
+  const [sortOrder, setSortOrder] = useState<"newest" | "alpha">("newest");
+  const [selectedWordTypes, setSelectedWordTypes] = useState<string[]>([]);
+  const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
 
   // Load from local storage
   useEffect(() => {
@@ -201,6 +210,17 @@ export default function App() {
               onUpload={handleUpload}
               isSyncing={isSyncing}
               onError={handleAIError}
+              // Lifted Filter Props
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              filterStatus={filterStatus}
+              setFilterStatus={setFilterStatus}
+              sortOrder={sortOrder}
+              setSortOrder={setSortOrder}
+              selectedWordTypes={selectedWordTypes}
+              setSelectedWordTypes={setSelectedWordTypes}
+              selectedTopics={selectedTopics}
+              setSelectedTopics={setSelectedTopics}
             />
           )}
           {activeTab === "reading" && (
@@ -235,40 +255,65 @@ export default function App() {
               onError={handleAIError}
             />
           )}
+          {activeTab === "game" && (
+            <GameTab 
+              key="game"
+              vocabList={vocabList}
+              // Shared filters
+              searchQuery={searchQuery}
+              filterStatus={filterStatus}
+              sortOrder={sortOrder}
+              selectedWordTypes={selectedWordTypes}
+              selectedTopics={selectedTopics}
+              onError={handleAIError}
+              onAddVocab={handleAddSingleVocab}
+              onToggleMastery={async (chinese) => {
+                setVocabList(prev => prev.map(v => 
+                  v.chinese === chinese ? { ...v, isMastered: !v.isMastered } : v
+                ));
+              }}
+            />
+          )}
         </AnimatePresence>
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 flex justify-around items-center h-16 px-2 z-50">
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 flex justify-around items-center h-16 px-1 z-50 overflow-x-auto scrollbar-none">
         <NavButton 
           active={activeTab === "ocr"} 
           onClick={() => setActiveTab("ocr")} 
-          icon={<Camera className="w-6 h-6" />} 
-          label="Quét ảnh" 
+          icon={<Camera className="w-5 h-5 md:w-6 md:h-6" />} 
+          label="Quét" 
         />
         <NavButton 
           active={activeTab === "vocab"} 
           onClick={() => setActiveTab("vocab")} 
-          icon={<BookOpen className="w-6 h-6" />} 
+          icon={<BookOpen className="w-5 h-5 md:w-6 md:h-6" />} 
           label="Từ vựng" 
         />
         <NavButton 
           active={activeTab === "reading"} 
           onClick={() => setActiveTab("reading")} 
-          icon={<Languages className="w-6 h-6" />} 
+          icon={<Languages className="w-5 h-5 md:w-6 md:h-6" />} 
           label="Luyện đọc" 
+        />
+        <NavButton 
+          active={activeTab === "game"} 
+          onClick={() => setActiveTab("game")} 
+          icon={<Gamepad2 className="w-5 h-5 md:w-6 md:h-6" />} 
+          label="Khám phá" 
         />
         <NavButton 
           active={activeTab === "grammar"} 
           onClick={() => setActiveTab("grammar")} 
-          icon={<FileText className="w-6 h-6" />} 
+          icon={<FileText className="w-5 h-5 md:w-6 md:h-6" />} 
           label="Ngữ pháp" 
         />
         <NavButton 
           active={activeTab === "chat"} 
           onClick={() => setActiveTab("chat")} 
-          icon={<MessageCircle className="w-6 h-6" />} 
-          label="Trò chuyện" 
+          icon={<MessageCircle className="w-5 h-5 md:w-6 md:h-6" />} 
+          label="Chat AI" 
         />
       </nav>
     </div>
