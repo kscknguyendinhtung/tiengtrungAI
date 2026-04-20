@@ -47,35 +47,40 @@ const MillionaireQuiz = ({ vocabList, filteredVocab, onBack, onError }: Milliona
   const [streak, setStreak] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
 
-  const speak = (zhText: string, viText: string) => {
+  const getVoice = (lang: string) => {
+    const voices = window.speechSynthesis.getVoices();
+    // Try to find a voice that matches the language exactly
+    let voice = voices.find(v => v.lang === lang);
+    // If not found, try a voice that starts with the language (e.g. zh-CN vs zh-CN_O-M)
+    if (!voice) voice = voices.find(v => v.lang.startsWith(lang.split('-')[0]));
+    return voice;
+  };
+
+  const speakZH = (text: string) => {
+    const zhUtterance = new SpeechSynthesisUtterance(text);
+    zhUtterance.lang = 'zh-CN';
+    zhUtterance.voice = getVoice('zh-CN') || null;
+    zhUtterance.rate = 0.85;
+    window.speechSynthesis.speak(zhUtterance);
+  };
+
+  const speakVI = (text: string) => {
+    const viUtterance = new SpeechSynthesisUtterance(text);
+    viUtterance.lang = 'vi-VN';
+    viUtterance.voice = getVoice('vi-VN') || null;
+    viUtterance.rate = 0.95;
+    window.speechSynthesis.speak(viUtterance);
+  };
+
+  const speak = (zhText: string, viText: string, mode: QuizMode, phase: 'start' | 'correct' = 'start') => {
     window.speechSynthesis.cancel();
     
-    // Create Chinese utterance
-    const zhUtterance = new SpeechSynthesisUtterance(zhText);
-    zhUtterance.lang = 'zh-CN';
-    zhUtterance.rate = 0.85;
-
-    // Create Vietnamese utterance
-    const viUtterance = new SpeechSynthesisUtterance(viText);
-    viUtterance.lang = 'vi-VN';
-    viUtterance.rate = 0.95;
-
-    if (quizMode === 'zh-vi') {
-      // Question is Chinese -> Read Chinese FIRST
-      zhUtterance.onend = () => {
-        setTimeout(() => {
-          if (status === 'playing') window.speechSynthesis.speak(viUtterance);
-        }, 200);
-      };
-      window.speechSynthesis.speak(zhUtterance);
+    if (phase === 'start') {
+      if (mode === 'zh-vi') speakZH(zhText);
+      else speakVI(viText);
     } else {
-      // Question is Vietnamese -> Read Vietnamese FIRST
-      viUtterance.onend = () => {
-        setTimeout(() => {
-          if (status === 'playing') window.speechSynthesis.speak(zhUtterance);
-        }, 200);
-      };
-      window.speechSynthesis.speak(viUtterance);
+      if (mode === 'zh-vi') speakVI(viText);
+      else speakZH(zhText);
     }
   };
 
@@ -109,13 +114,15 @@ const MillionaireQuiz = ({ vocabList, filteredVocab, onBack, onError }: Milliona
     setTimeLeft(timerLimit);
     setSelectedAnswer(null);
     setStatus('playing');
+
+    // Call speak directly here for iOS gesture connection
+    setTimeout(() => speak(question.chinese, question.meaning, quizMode, 'start'), 50);
   };
 
   useEffect(() => {
-    if (status === 'playing' && currentQuestion) {
-      speak(currentQuestion.chinese, currentQuestion.meaning);
-    }
-  }, [currentQuestion, status]);
+    // Prime voices list
+    window.speechSynthesis.getVoices();
+  }, []);
 
   useEffect(() => {
     let timer: any;
@@ -137,10 +144,13 @@ const MillionaireQuiz = ({ vocabList, filteredVocab, onBack, onError }: Milliona
     primeTTS(); // Unlock audio immediately on user click
     setSelectedAnswer(answer);
     if (answer === correctAnswer) {
+      if (currentQuestion) {
+        speak(currentQuestion.chinese, currentQuestion.meaning, quizMode, 'correct');
+      }
       setScore(prev => prev + (streak + 1) * 100);
       setStreak(prev => prev + 1);
       setStatus('result');
-      setTimeout(() => generateQuestion(), 1000);
+      setTimeout(() => generateQuestion(), 1200);
     } else {
       setStatus('gameover');
     }
@@ -288,7 +298,7 @@ const MillionaireQuiz = ({ vocabList, filteredVocab, onBack, onError }: Milliona
           )}
           
           <button 
-            onClick={() => currentQuestion && speak(currentQuestion.chinese, currentQuestion.meaning)}
+            onClick={() => currentQuestion && speak(currentQuestion.chinese, currentQuestion.meaning, quizMode, status === 'result' ? 'correct' : 'start')}
             className="mt-4 p-2 bg-indigo-50 text-indigo-600 rounded-full hover:bg-indigo-100 transition-colors active:scale-90"
             title="Đọc lại"
           >
