@@ -12,7 +12,8 @@ import {
   CheckCircle2,
   ArrowRight,
   Play,
-  Trophy
+  Trophy,
+  Volume2
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Vocabulary } from "../types";
@@ -46,14 +47,32 @@ const MillionaireQuiz = ({ vocabList, filteredVocab, onBack, onError }: Milliona
   const [streak, setStreak] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
 
-  const speak = (text: string, lang = 'zh-CN') => {
+  const speak = (zhText: string, viText: string) => {
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = lang;
-    window.speechSynthesis.speak(utterance);
+    
+    // Create Chinese utterance
+    const zhUtterance = new SpeechSynthesisUtterance(zhText);
+    zhUtterance.lang = 'zh-CN';
+    zhUtterance.rate = 0.9;
+
+    // Create Vietnamese utterance
+    const viUtterance = new SpeechSynthesisUtterance(viText);
+    viUtterance.lang = 'vi-VN';
+    viUtterance.rate = 1.0;
+
+    // Queue them
+    window.speechSynthesis.speak(zhUtterance);
+    window.speechSynthesis.speak(viUtterance);
+  };
+
+  const primeTTS = () => {
+    // IOS fix: Primer speech unlock
+    const u = new SpeechSynthesisUtterance("");
+    window.speechSynthesis.speak(u);
   };
 
   const generateQuestion = () => {
+    primeTTS();
     if (filteredVocab.length < 4) {
       alert("Cần ít nhất 4 từ trong danh sách lọc để bắt đầu trò chơi.");
       onBack();
@@ -80,7 +99,7 @@ const MillionaireQuiz = ({ vocabList, filteredVocab, onBack, onError }: Milliona
 
   useEffect(() => {
     if (status === 'playing' && currentQuestion) {
-      speak(currentQuestion.chinese);
+      speak(currentQuestion.chinese, currentQuestion.meaning);
     }
   }, [currentQuestion, status]);
 
@@ -101,6 +120,7 @@ const MillionaireQuiz = ({ vocabList, filteredVocab, onBack, onError }: Milliona
   }, [status, timeLeft]);
 
   const handleAnswer = (answer: string | null) => {
+    primeTTS(); // Unlock audio immediately on user click
     setSelectedAnswer(answer);
     if (answer === correctAnswer) {
       setScore(prev => prev + (streak + 1) * 100);
@@ -252,6 +272,14 @@ const MillionaireQuiz = ({ vocabList, filteredVocab, onBack, onError }: Milliona
           ) : (
             <p className="mt-2 text-xs text-neutral-400 font-medium italic">Chọn chữ Hán tương ứng</p>
           )}
+          
+          <button 
+            onClick={() => currentQuestion && speak(currentQuestion.chinese, currentQuestion.meaning)}
+            className="mt-4 p-2 bg-indigo-50 text-indigo-600 rounded-full hover:bg-indigo-100 transition-colors active:scale-90"
+            title="Đọc lại"
+          >
+            <Volume2 className="w-5 h-5" />
+          </button>
         </div>
 
         <div className="grid grid-cols-1 gap-2 sm:gap-4 overflow-y-auto pr-1">
