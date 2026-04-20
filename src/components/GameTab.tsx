@@ -41,6 +41,7 @@ const MillionaireQuiz = ({ vocabList, filteredVocab, onBack, onError }: Milliona
   const [options, setOptions] = useState<string[]>([]);
   const [correctAnswer, setCorrectAnswer] = useState<string>("");
   const [score, setScore] = useState(0);
+  const [timerLimit, setTimerLimit] = useState(3);
   const [timeLeft, setTimeLeft] = useState(3);
   const [streak, setStreak] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
@@ -72,7 +73,7 @@ const MillionaireQuiz = ({ vocabList, filteredVocab, onBack, onError }: Milliona
     setCurrentQuestion(question);
     setCorrectAnswer(correct);
     setOptions(allOptions);
-    setTimeLeft(3);
+    setTimeLeft(timerLimit);
     setSelectedAnswer(null);
     setStatus('playing');
   };
@@ -113,45 +114,68 @@ const MillionaireQuiz = ({ vocabList, filteredVocab, onBack, onError }: Milliona
 
   if (status === 'idle') {
     return (
-      <div className="flex flex-col items-center justify-center py-10 space-y-8 animate-in fade-in zoom-in duration-300">
-        <div className="relative">
-          <div className="w-24 h-24 bg-indigo-600 rounded-full flex items-center justify-center shadow-2xl shadow-indigo-200">
-            <Trophy className="w-12 h-12 text-amber-400" />
+      <div className="flex-1 flex flex-col items-center justify-center py-4 sm:py-10 space-y-4 sm:space-y-8 animate-in fade-in zoom-in duration-300 w-full max-w-sm mx-auto">
+        <div className="relative shrink-0">
+          <div className="w-16 h-16 sm:w-24 sm:h-24 bg-indigo-600 rounded-full flex items-center justify-center shadow-2xl shadow-indigo-200">
+            <Trophy className="w-8 h-8 sm:w-12 sm:h-12 text-amber-400" />
           </div>
-          <Sparkles className="absolute -top-2 -right-2 text-amber-500 animate-pulse" />
+          <Sparkles className="absolute -top-2 -right-2 text-amber-500 animate-pulse w-4 h-4 sm:w-6 sm:h-6" />
         </div>
         
-        <div className="text-center space-y-2">
-          <h3 className="text-3xl font-bold text-neutral-800">Ai là Triệu phú?</h3>
-          <p className="text-neutral-500">Chinh phục đỉnh cao Hán ngữ với thử thách 3 giây</p>
+        <div className="text-center space-y-1 sm:space-y-2 px-4">
+          <h3 className="text-2xl sm:text-3xl font-bold text-neutral-800">Ai là Triệu phú?</h3>
+          <p className="text-sm sm:text-base text-neutral-500 font-medium">Thử thách phản xạ với mốc {timerLimit} giây</p>
         </div>
 
-        <div className="w-full max-w-xs space-y-4">
-          <div className="bg-neutral-100 p-1 rounded-2xl flex">
-            <button 
-              onClick={() => setQuizMode('zh-vi')}
-              className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${quizMode === 'zh-vi' ? 'bg-white shadow text-indigo-600' : 'text-neutral-500'}`}
-            >
-              Hán → Việt
-            </button>
-            <button 
-              onClick={() => setQuizMode('vi-zh')}
-              className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${quizMode === 'vi-zh' ? 'bg-white shadow text-indigo-600' : 'text-neutral-500'}`}
-            >
-              Việt → Hán
-            </button>
+        <div className="w-full px-6 space-y-4 sm:space-y-6">
+          <div className="space-y-2">
+            <span className="text-[10px] sm:text-xs font-bold text-neutral-400 uppercase tracking-widest block text-center">Chế độ chơi</span>
+            <div className="bg-neutral-100 p-1 rounded-2xl flex">
+              <button 
+                onClick={() => setQuizMode('zh-vi')}
+                className={`flex-1 py-2 sm:py-3 rounded-xl font-bold text-xs sm:text-sm transition-all ${quizMode === 'zh-vi' ? 'bg-white shadow text-indigo-600' : 'text-neutral-500'}`}
+              >
+                Hán → Việt
+              </button>
+              <button 
+                onClick={() => setQuizMode('vi-zh')}
+                className={`flex-1 py-2 sm:py-3 rounded-xl font-bold text-xs sm:text-sm transition-all ${quizMode === 'vi-zh' ? 'bg-white shadow text-indigo-600' : 'text-neutral-500'}`}
+              >
+                Việt → Hán
+              </button>
+            </div>
           </div>
 
-          <button 
-            onClick={generateQuestion}
-            className="w-full py-5 bg-indigo-600 text-white rounded-[2rem] font-bold text-xl shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center gap-3"
-          >
-            Bắt đầu <ArrowRight className="w-6 h-6" />
-          </button>
-          
-          <button onClick={onBack} className="w-full py-3 text-neutral-400 font-bold hover:text-neutral-600 transition-colors">
-            Quay lại
-          </button>
+          <div className="space-y-2">
+            <span className="text-[10px] sm:text-xs font-bold text-neutral-400 uppercase tracking-widest block text-center">Thời gian suy nghĩ</span>
+            <div className="flex justify-between gap-2">
+              {[3, 5, 10, 15].map(sec => (
+                <button
+                  key={sec}
+                  onClick={() => {
+                    setTimerLimit(sec);
+                    setTimeLeft(sec);
+                  }}
+                  className={`flex-1 py-2 rounded-xl font-bold text-[10px] sm:text-xs transition-all border-2 ${timerLimit === sec ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' : 'bg-white border-neutral-100 text-neutral-400'}`}
+                >
+                  {sec}s
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2 pt-2">
+            <button 
+              onClick={generateQuestion}
+              className="w-full py-4 sm:py-5 bg-indigo-600 text-white rounded-[1.5rem] sm:rounded-[2rem] font-bold text-lg sm:text-xl shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center gap-3"
+            >
+              Bắt đầu <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6" />
+            </button>
+            
+            <button onClick={onBack} className="w-full py-2 text-neutral-400 font-bold text-sm hover:text-neutral-600 transition-colors">
+              Quay lại
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -159,24 +183,24 @@ const MillionaireQuiz = ({ vocabList, filteredVocab, onBack, onError }: Milliona
 
   if (status === 'gameover') {
     return (
-      <div className="flex flex-col items-center justify-center py-10 space-y-8 animate-in slide-in-from-bottom-10 duration-500">
-        <div className="w-20 h-20 bg-rose-100 rounded-full flex items-center justify-center">
-          <RotateCcw className="w-10 h-10 text-rose-600" />
+      <div className="flex-1 flex flex-col items-center justify-center py-6 sm:py-10 space-y-6 sm:space-y-8 animate-in slide-in-from-bottom-10 duration-500 w-full max-w-sm mx-auto">
+        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-rose-100 rounded-full flex items-center justify-center shrink-0">
+          <RotateCcw className="w-8 h-8 sm:w-10 sm:h-10 text-rose-600" />
         </div>
-        <div className="text-center">
-          <h3 className="text-4xl font-black text-neutral-800 mb-2">GameOver!</h3>
-          <p className="text-neutral-500 font-medium italic">Bạn đã dừng chân tại mốc</p>
-          <p className="text-5xl font-black text-indigo-600 mt-4">${score.toLocaleString()}</p>
+        <div className="text-center px-4">
+          <h3 className="text-3xl sm:text-4xl font-black text-neutral-800 mb-2">GameOver!</h3>
+          <p className="text-sm sm:text-base text-neutral-500 font-medium italic">Bạn đã dừng chân tại mốc</p>
+          <p className="text-4xl sm:text-5xl font-black text-indigo-600 mt-2 sm:mt-4">${score.toLocaleString()}</p>
         </div>
 
-        <div className="w-full max-w-xs space-y-4">
+        <div className="w-full px-6 space-y-3 sm:space-y-4">
           <button 
             onClick={generateQuestion}
-            className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold text-lg shadow-lg hover:shadow-indigo-100 transition-all"
+            className="w-full py-3 sm:py-4 bg-indigo-600 text-white rounded-xl sm:rounded-2xl font-bold text-base sm:text-lg shadow-lg hover:shadow-indigo-100 transition-all"
           >
             Chơi lại ngay
           </button>
-          <button onClick={onBack} className="w-full py-3 text-neutral-400 font-bold hover:text-neutral-600 transition-colors">
+          <button onClick={onBack} className="w-full py-2 sm:py-3 text-neutral-400 font-bold text-sm hover:text-neutral-600 transition-colors">
             Về màn hình chính
           </button>
         </div>
@@ -185,8 +209,8 @@ const MillionaireQuiz = ({ vocabList, filteredVocab, onBack, onError }: Milliona
   }
 
   return (
-    <div className="space-y-10 py-6 max-w-md mx-auto h-full flex flex-col">
-      <div className="flex justify-between items-center px-4">
+    <div className="space-y-4 sm:space-y-10 py-2 sm:py-6 max-w-md mx-auto h-full flex flex-col overflow-y-auto sm:overflow-hidden">
+      <div className="flex justify-between items-center px-4 shrink-0">
         <div className="flex flex-col">
           <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Tiền thưởng</span>
           <span className="text-2xl font-black text-amber-500 tracking-tighter">${score.toLocaleString()}</span>
@@ -196,10 +220,10 @@ const MillionaireQuiz = ({ vocabList, filteredVocab, onBack, onError }: Milliona
              <circle cx="32" cy="32" r="28" fill="none" stroke="#f3f4f6" strokeWidth="6" />
              <circle 
                cx="32" cy="32" r="28" fill="none" 
-               stroke={timeLeft > 1 ? "#6366f1" : "#f43f5e"} 
+               stroke={timeLeft > (timerLimit / 3) ? "#6366f1" : "#f43f5e"} 
                strokeWidth="6"
                strokeDasharray={176}
-               strokeDashoffset={176 - (176 * timeLeft / 3)}
+               strokeDashoffset={176 - (176 * timeLeft / timerLimit)}
                className="transition-all duration-1000 ease-linear"
              />
            </svg>
@@ -215,23 +239,22 @@ const MillionaireQuiz = ({ vocabList, filteredVocab, onBack, onError }: Milliona
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col justify-center gap-12 px-2">
-        <div className="bg-white p-10 rounded-[3rem] shadow-2xl border-b-8 border-indigo-100 text-center relative">
+      <div className="flex-1 flex flex-col justify-center gap-4 sm:gap-12 px-2 min-h-0">
+        <div className="bg-white p-6 sm:p-10 rounded-[2rem] sm:rounded-[3rem] shadow-xl border-b-4 sm:border-b-8 border-indigo-100 text-center relative">
           <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-6 py-1 bg-indigo-600 text-white rounded-full text-[10px] font-black uppercase tracking-widest">Câu hỏi</div>
-          <h4 className="text-4xl font-black text-neutral-800 break-words leading-tight">
+          <h4 className="text-2xl sm:text-4xl font-black text-neutral-800 break-words leading-tight">
             {quizMode === 'zh-vi' ? currentQuestion?.chinese : currentQuestion?.meaning}
           </h4>
           {quizMode === 'zh-vi' ? (
             <div className="mt-4 space-y-2">
               <p className="text-xl font-bold text-indigo-500 italic">{currentQuestion?.pinyin}</p>
-              <p className="text-indigo-400 font-bold uppercase tracking-[0.2em]">{currentQuestion?.hanViet}</p>
             </div>
           ) : (
             <p className="mt-2 text-xs text-neutral-400 font-medium italic">Chọn chữ Hán tương ứng</p>
           )}
         </div>
 
-        <div className="grid grid-cols-1 gap-4">
+        <div className="grid grid-cols-1 gap-2 sm:gap-4 overflow-y-auto pr-1">
           {options.map((opt, i) => {
             const optPinyin = quizMode === 'vi-zh' ? vocabList.find(v => v.chinese === opt)?.pinyin : null;
             let btnClass = "bg-white border-2 border-neutral-100 text-neutral-600";
@@ -246,15 +269,15 @@ const MillionaireQuiz = ({ vocabList, filteredVocab, onBack, onError }: Milliona
                 key={i}
                 disabled={status !== 'playing'}
                 onClick={() => handleAnswer(opt)}
-                className={`w-full py-5 px-6 rounded-2xl font-bold text-lg text-center transition-all flex items-center justify-between group h-22 ${btnClass} active:scale-95`}
+                className={`w-full py-3 sm:py-5 px-4 sm:px-6 rounded-xl sm:rounded-2xl font-bold text-base sm:text-lg text-center transition-all flex items-center justify-between group min-h-[4rem] sm:h-22 ${btnClass} active:scale-95`}
               >
-                <div className="flex items-center gap-4 w-full">
-                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black ${selectedAnswer === opt ? 'bg-white/20' : 'bg-neutral-100 group-hover:bg-indigo-50 group-hover:text-indigo-600'}`}>
+                <div className="flex items-center gap-3 sm:gap-4 w-full">
+                   <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-[10px] sm:text-xs font-black shrink-0 ${selectedAnswer === opt ? 'bg-white/20' : 'bg-neutral-100 group-hover:bg-indigo-50 group-hover:text-indigo-600'}`}>
                       {String.fromCharCode(65 + i)}
                    </div>
-                   <div className="flex-1 text-center">
-                     <span className="block leading-tight">{opt}</span>
-                     {optPinyin && <span className={`block text-xs italic font-medium ${selectedAnswer === opt ? 'text-white/80' : 'text-indigo-400'}`}>{optPinyin}</span>}
+                   <div className="flex-1 text-center min-w-0">
+                     <span className="block leading-tight truncate sm:whitespace-normal">{opt}</span>
+                     {optPinyin && <span className={`block text-[10px] sm:text-xs italic font-medium truncate ${selectedAnswer === opt ? 'text-white/80' : 'text-indigo-400'}`}>{optPinyin}</span>}
                    </div>
                 </div>
               </button>
@@ -513,9 +536,9 @@ export default function GameTab({
   };
 
   return (
-    <div className="p-4 space-y-6 max-w-2xl mx-auto h-full flex flex-col">
+    <div className={`max-w-2xl mx-auto h-full flex flex-col ${view === 'quiz' ? 'p-0' : 'p-4 space-y-6'}`}>
       {/* Mode Switcher */}
-      <div className="bg-neutral-100 p-1 rounded-2xl flex w-full max-w-sm mx-auto shadow-inner">
+      <div className={`bg-neutral-100 p-1 rounded-2xl flex w-full max-w-sm mx-auto shadow-inner shrink-0 ${view === 'quiz' ? 'mt-4 mx-4 w-[calc(100%-2rem)]' : ''}`}>
         <button 
           onClick={() => setView('explore')}
           className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all ${view === 'explore' ? 'bg-white shadow text-emerald-600' : 'text-neutral-500'}`}
