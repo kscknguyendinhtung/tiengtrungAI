@@ -552,7 +552,7 @@ export default function GameTab({
 
       speakSequence(items);
     }
-  }, [data, loading, currentWord, vocabList]);
+  }, [data, loading, currentWord]);
 
   const exploreWord = async (word: string) => {
     if (!word) return;
