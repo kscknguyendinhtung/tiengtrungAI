@@ -35,7 +35,7 @@ export default function OCRTab({ config, onResult, onError }: Props) {
           
           // Save to Google Sheet
           const sheetId = config.sheetUrl.match(/\/d\/(.*?)(\/|$)/)?.[1] || config.sheetUrl;
-          await googleSheetService.saveOCRToSheet(config.scriptUrl, sheetId, result.originalText);
+          await googleSheetService.saveOCRToSheet(config.scriptUrl, sheetId, result.originalText, config.ocrSheetName);
           
           setTimeout(() => {
             onResult(result);

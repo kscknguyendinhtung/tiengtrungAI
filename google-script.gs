@@ -15,26 +15,35 @@ function doGet(e) {
   const action = e.parameter.action;
   const ss = SpreadsheetApp.openById(sheetId);
   
+  if (action === 'getSheets') {
+    const sheetNames = ss.getSheets().map(s => s.getName());
+    return ContentService.createTextOutput(JSON.stringify(sheetNames)).setMimeType(ContentService.MimeType.JSON);
+  }
+  
   if (action === 'getVocab') {
-    const sheet = ss.getSheetByName('từ vựng') || ss.insertSheet('từ vựng');
+    const sheetName = e.parameter.vocabSheetName || 'từ vựng';
+    const sheet = ss.getSheetByName(sheetName) || ss.insertSheet(sheetName);
     const data = sheet.getDataRange().getValues();
     return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
   }
   
   if (action === 'getReading') {
-    const sheet = ss.getSheetByName('luyện đọc') || ss.insertSheet('luyện đọc');
+    const sheetName = e.parameter.readingSheetName || 'luyện đọc';
+    const sheet = ss.getSheetByName(sheetName) || ss.insertSheet(sheetName);
     const data = sheet.getDataRange().getValues();
     return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
   }
 
   if (action === 'getGrammar') {
-    const sheet = ss.getSheetByName('ngữ pháp') || ss.insertSheet('ngữ pháp');
+    const sheetName = e.parameter.grammarSheetName || 'ngữ pháp';
+    const sheet = ss.getSheetByName(sheetName) || ss.insertSheet(sheetName);
     const data = sheet.getDataRange().getValues();
     return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
   }
   
   if (action === 'getOCR') {
-    const sheet = ss.getSheetByName('OCR') || ss.insertSheet('OCR');
+    const sheetName = e.parameter.ocrSheetName || 'OCR';
+    const sheet = ss.getSheetByName(sheetName) || ss.insertSheet(sheetName);
     const data = sheet.getDataRange().getValues();
     return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
   }
@@ -47,13 +56,15 @@ function doPost(e) {
   const ss = SpreadsheetApp.openById(sheetId);
   
   if (action === 'saveOCR') {
-    const sheet = ss.getSheetByName('OCR') || ss.insertSheet('OCR');
+    const sheetName = params.ocrSheetName || 'OCR';
+    const sheet = ss.getSheetByName(sheetName) || ss.insertSheet(sheetName);
     sheet.appendRow([new Date(), params.text]);
     return ContentService.createTextOutput('Success').setMimeType(ContentService.MimeType.TEXT);
   }
   
   if (action === 'syncVocab') {
-    const sheet = ss.getSheetByName('từ vựng') || ss.insertSheet('từ vựng');
+    const sheetName = params.vocabSheetName || 'từ vựng';
+    const sheet = ss.getSheetByName(sheetName) || ss.insertSheet(sheetName);
     sheet.clear();
     const vocabData = params.data; 
     if (vocabData.length > 0) {
@@ -63,7 +74,8 @@ function doPost(e) {
   }
 
   if (action === 'syncReading') {
-    const sheet = ss.getSheetByName('luyện đọc') || ss.insertSheet('luyện đọc');
+    const sheetName = params.readingSheetName || 'luyện đọc';
+    const sheet = ss.getSheetByName(sheetName) || ss.insertSheet(sheetName);
     sheet.clear();
     const readingData = params.data; 
     if (readingData.length > 0) {
@@ -73,7 +85,8 @@ function doPost(e) {
   }
 
   if (action === 'syncGrammar') {
-    const sheet = ss.getSheetByName('ngữ pháp') || ss.insertSheet('ngữ pháp');
+    const sheetName = params.grammarSheetName || 'ngữ pháp';
+    const sheet = ss.getSheetByName(sheetName) || ss.insertSheet(sheetName);
     sheet.clear();
     const grammarData = params.data; 
     if (grammarData.length > 0) {

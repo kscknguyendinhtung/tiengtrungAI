@@ -65,21 +65,70 @@ export default function App() {
   const handleSync = async () => {
     if (!config?.scriptUrl || !config?.sheetUrl) return;
     setIsSyncing(true);
-    const sheetId = extractSheetId(config.sheetUrl);
-    const { vocab, reading, grammar } = await googleSheetService.syncFromSheet(config.scriptUrl, sheetId);
-    
-    if (vocab.length > 0) setVocabList(vocab);
-    if (reading.length > 0) setReadingSentences(reading);
-    if (grammar.length > 0) setGrammarPoints(grammar);
-    
-    setIsSyncing(false);
+    try {
+      const sheetId = extractSheetId(config.sheetUrl);
+      const res = await googleSheetService.syncFromSheet(
+        config.scriptUrl, 
+        sheetId,
+        config.vocabSheetName,
+        config.readingSheetName,
+        config.grammarSheetName
+      );
+      
+      if (res) {
+        setVocabList(res.vocab);
+        setReadingSentences(res.reading);
+        setGrammarPoints(res.grammar);
+      } else {
+        alert("Không thể tải hoặc đồng bộ dữ liệu. Hãy đảm bảo bạn đã điền đúng link Apps Script Web App và file Google Sheet có cột tương ứng.");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Đồng bộ thất bại do lỗi kết nối.");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleSaveConfig = async (newConfig: AppConfig) => {
+    setConfig(newConfig);
+    localStorage.setItem("tiengtrungAI_config", JSON.stringify(newConfig));
+    setIsSyncing(true);
+    try {
+      const sheetId = extractSheetId(newConfig.sheetUrl);
+      const res = await googleSheetService.syncFromSheet(
+        newConfig.scriptUrl, 
+        sheetId,
+        newConfig.vocabSheetName,
+        newConfig.readingSheetName,
+        newConfig.grammarSheetName
+      );
+      if (res) {
+        setVocabList(res.vocab);
+        setReadingSentences(res.reading);
+        setGrammarPoints(res.grammar);
+      }
+    } catch (e) {
+      console.error("Auto sync on save failed:", e);
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const handleUpload = async () => {
     if (!config?.scriptUrl || !config?.sheetUrl) return;
     setIsSyncing(true);
     const sheetId = extractSheetId(config.sheetUrl);
-    await googleSheetService.syncToSheet(config.scriptUrl, sheetId, vocabList, readingSentences, grammarPoints);
+    await googleSheetService.syncToSheet(
+      config.scriptUrl, 
+      sheetId, 
+      vocabList, 
+      readingSentences, 
+      grammarPoints,
+      config.vocabSheetName,
+      config.readingSheetName,
+      config.grammarSheetName
+    );
     setIsSyncing(false);
   };
 
@@ -128,7 +177,9 @@ export default function App() {
   };
 
   if (!config) {
-    return <ConfigScreen onSave={setConfig} onSync={handleSync} />;
+    const savedConfigStr = localStorage.getItem("tiengtrungAI_config");
+    const initialConfig = savedConfigStr ? JSON.parse(savedConfigStr) : null;
+    return <ConfigScreen initialConfig={initialConfig} onSave={handleSaveConfig} onSync={handleSync} />;
   }
 
   return (

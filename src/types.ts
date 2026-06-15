@@ -49,4 +49,8 @@ export interface GrammarQuizQuestion {
 export interface AppConfig {
   sheetUrl: string;
   scriptUrl: string;
+  vocabSheetName?: string;
+  readingSheetName?: string;
+  grammarSheetName?: string;
+  ocrSheetName?: string;
 }

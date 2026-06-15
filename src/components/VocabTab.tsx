@@ -393,6 +393,7 @@ export default function VocabTab({
             list={filteredList} 
             onToggleMastered={toggleMasteredByWord}
             onEdit={handleEdit}
+            onDelete={deleteWordByWord}
             initialIndex={initialFlashcardIndex}
           />
         )}
@@ -478,12 +479,26 @@ export default function VocabTab({
                   className="w-full px-4 py-2 bg-neutral-100 border-none rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
-              <button 
-                onClick={saveEdit}
-                className="w-full py-3 bg-emerald-600 text-white font-bold rounded-2xl"
-              >
-                Lưu thay đổi
-              </button>
+              <div className="pt-2 space-y-2">
+                <button 
+                  onClick={saveEdit}
+                  className="w-full py-3 bg-emerald-600 text-white font-bold rounded-2xl shadow-lg shadow-emerald-100 flex items-center justify-center gap-1.5 hover:bg-emerald-700 transition-colors"
+                >
+                  Lưu thay đổi
+                </button>
+                <button 
+                  onClick={() => {
+                    if (editingItem) {
+                      deleteWordByWord(editingItem.chinese);
+                      setShowEditModal(false);
+                    }
+                  }}
+                  className="w-full py-3 bg-red-50 text-red-600 border border-red-200 font-bold rounded-2xl flex items-center justify-center gap-1.5 hover:bg-red-100 transition-colors"
+                >
+                  <Trash2 className="w-4.5 h-4.5" />
+                  Xóa từ vựng này
+                </button>
+              </div>
             </div>
           </motion.div>
         </div>
@@ -629,7 +644,7 @@ function TableView({ list, onToggleMastered, onDelete, onEdit, onSelect }: { lis
   );
 }
 
-function FlashcardView({ list, onToggleMastered, onEdit, initialIndex = 0 }: { list: Vocabulary[], onToggleMastered: (word: string) => void, onEdit: (item: Vocabulary) => void, initialIndex?: number, key?: string }) {
+function FlashcardView({ list, onToggleMastered, onEdit, onDelete, initialIndex = 0 }: { list: Vocabulary[], onToggleMastered: (word: string) => void, onEdit: (item: Vocabulary) => void, onDelete: (word: string) => void, initialIndex?: number, key?: string }) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [isFlipped, setIsFlipped] = useState(false);
   const [shuffleOrder, setShuffleOrder] = useState<number[]>([]);
@@ -647,6 +662,13 @@ function FlashcardView({ list, onToggleMastered, onEdit, initialIndex = 0 }: { l
   useEffect(() => {
     setShuffleOrder(Array.from({ length: list.length }, (_, i) => i));
   }, [list.length]);
+
+  // Ensure index is kept within bounds when list changes
+  useEffect(() => {
+    if (currentIndex >= list.length && list.length > 0) {
+      setCurrentIndex(list.length - 1);
+    }
+  }, [list.length, currentIndex]);
 
   const displayIndex = shuffleOrder[currentIndex] ?? currentIndex;
   const currentItem = list[displayIndex];
@@ -757,8 +779,20 @@ function FlashcardView({ list, onToggleMastered, onEdit, initialIndex = 0 }: { l
           <button 
             onClick={() => onEdit(currentItem)}
             className="p-2 rounded-lg bg-neutral-100 text-neutral-400 hover:text-emerald-600 transition-colors"
+            title="Sửa từ"
           >
             <Edit2 className="w-4 h-4" />
+          </button>
+          <button 
+            onClick={() => {
+              if (confirm(`Xóa từ "${currentItem.chinese}"?`)) {
+                onDelete(currentItem.chinese);
+              }
+            }}
+            className="p-2 rounded-lg bg-neutral-100 text-neutral-400 hover:text-red-500 transition-colors"
+            title="Xóa từ"
+          >
+            <Trash2 className="w-4 h-4" />
           </button>
         </div>
       </div>
