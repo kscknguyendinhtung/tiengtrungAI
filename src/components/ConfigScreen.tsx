@@ -23,7 +23,7 @@ export default function ConfigScreen({ initialConfig, onSave, onSync }: Props) {
   const [grammarSheetName, setGrammarSheetName] = useState(initialConfig?.grammarSheetName || "ngữ pháp");
   const [ocrSheetName, setOcrSheetName] = useState(initialConfig?.ocrSheetName || "OCR");
 
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(true);
   const [availableSheets, setAvailableSheets] = useState<string[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
@@ -35,7 +35,6 @@ export default function ConfigScreen({ initialConfig, onSave, onSync }: Props) {
 
   const handleScanSheets = async () => {
     if (!sheetUrl || !scriptUrl) {
-      setScanError("Vui lòng điền link Google Sheet và link Script Web App.");
       return;
     }
     setIsScanning(true);
@@ -45,22 +44,54 @@ export default function ConfigScreen({ initialConfig, onSave, onSync }: Props) {
       const sheetNames = await googleSheetService.getSheetNames(scriptUrl, sheetId);
       if (sheetNames && sheetNames.length > 0) {
         setAvailableSheets(sheetNames);
-        // Pre-fill selects if they match exactly or find closest
-        if (sheetNames.includes("từ vựng") && vocabSheetName === "từ vựng") setVocabSheetName("từ vựng");
-        if (sheetNames.includes("luyện đọc") && readingSheetName === "luyện đọc") setReadingSheetName("luyện đọc");
-        if (sheetNames.includes("ngữ pháp") && grammarSheetName === "ngữ pháp") setGrammarSheetName("ngữ pháp");
-        if (sheetNames.includes("OCR") && ocrSheetName === "OCR") setOcrSheetName("OCR");
         setShowAdvanced(true);
+
+        const findBestMatch = (keywords: string[], fallback: string) => {
+          const match = sheetNames.find(name => 
+            keywords.some(keyword => name.toLowerCase().includes(keyword.toLowerCase()))
+          );
+          return match || sheetNames[0] || fallback;
+        };
+
+        setVocabSheetName(prev => {
+          if (sheetNames.includes(prev)) return prev;
+          return findBestMatch(["từ vựng", "vocab", "word", "từ"], prev);
+        });
+
+        setReadingSheetName(prev => {
+          if (sheetNames.includes(prev)) return prev;
+          return findBestMatch(["luyện đọc", "reading", "sentence", "đọc"], prev);
+        });
+
+        setGrammarSheetName(prev => {
+          if (sheetNames.includes(prev)) return prev;
+          return findBestMatch(["ngữ pháp", "grammar", "cấu trúc", "sentence"], prev);
+        });
+
+        setOcrSheetName(prev => {
+          if (sheetNames.includes(prev)) return prev;
+          return findBestMatch(["ocr", "quét", "nhật ký", "image"], prev);
+        });
       } else {
-        setScanError("Không thể tìm thấy sheet nào. Hãy đảm bảo bạn đã triển khai đúng Apps Script Web App.");
+        setScanError("Không thể tải được danh sách tab. Vui lòng kiểm tra quyền chia sẻ của Google Sheet (Bất kỳ ai có liên kết) và URL Apps Script.");
       }
     } catch (e) {
       console.error(e);
-      setScanError("Lỗi kết nối. Vui lòng kiểm tra lại URL của Apps Script.");
+      setScanError("Lỗi kết nối đến Google Apps Script. Vui lòng kiểm tra kỹ URL.");
     } finally {
       setIsScanning(false);
     }
   };
+
+  // Automatic sheet scanning hook
+  useEffect(() => {
+    if (sheetUrl && scriptUrl && sheetUrl.startsWith("http") && scriptUrl.startsWith("http")) {
+      const delayDebounce = setTimeout(() => {
+        handleScanSheets();
+      }, 800);
+      return () => clearTimeout(delayDebounce);
+    }
+  }, [sheetUrl, scriptUrl]);
 
   const handleSave = () => {
     if (sheetUrl && scriptUrl) {
@@ -153,105 +184,89 @@ export default function ConfigScreen({ initialConfig, onSave, onSync }: Props) {
                 {/* Vocabulary Tab */}
                 <div>
                   <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Tab Từ vựng</label>
-                  <div className="flex gap-2">
-                    <input 
-                      type="text" 
-                      value={vocabSheetName}
-                      onChange={(e) => setVocabSheetName(e.target.value)}
-                      placeholder='Mặc định: "từ vựng"'
-                      className="flex-1 px-3 py-2 bg-white border border-neutral-200 rounded-lg text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none"
-                    />
-                    {availableSheets.length > 0 && (
-                      <select
-                        value={availableSheets.includes(vocabSheetName) ? vocabSheetName : ""}
-                        onChange={(e) => {
-                          if (e.target.value) setVocabSheetName(e.target.value);
-                        }}
-                        className="px-2 py-2 bg-white border border-neutral-200 rounded-lg text-sm max-w-[150px] focus:ring-1 focus:ring-emerald-500 outline-none"
-                      >
-                        <option value="">-- Chọn tab --</option>
-                        {availableSheets.map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
+                  <select
+                    value={vocabSheetName}
+                    onChange={(e) => {
+                      if (e.target.value) setVocabSheetName(e.target.value);
+                    }}
+                    disabled={isScanning}
+                    className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none disabled:opacity-50"
+                  >
+                    {availableSheets.length > 0 ? (
+                      availableSheets.map(s => <option key={s} value={s}>{s}</option>)
+                    ) : (
+                      <>
+                        <option value="từ vựng">từ vựng (Mặc định)</option>
+                        <option value="">-- Đang quét danh sách tab... --</option>
+                      </>
                     )}
-                  </div>
+                  </select>
                 </div>
 
                 {/* Reading Tab */}
                 <div>
                   <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Tab Luyện đọc</label>
-                  <div className="flex gap-2">
-                    <input 
-                      type="text" 
-                      value={readingSheetName}
-                      onChange={(e) => setReadingSheetName(e.target.value)}
-                      placeholder='Mặc định: "luyện đọc"'
-                      className="flex-1 px-3 py-2 bg-white border border-neutral-200 rounded-lg text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none"
-                    />
-                    {availableSheets.length > 0 && (
-                      <select
-                        value={availableSheets.includes(readingSheetName) ? readingSheetName : ""}
-                        onChange={(e) => {
-                          if (e.target.value) setReadingSheetName(e.target.value);
-                        }}
-                        className="px-2 py-2 bg-white border border-neutral-200 rounded-lg text-sm max-w-[150px] focus:ring-1 focus:ring-emerald-500 outline-none"
-                      >
-                        <option value="">-- Chọn tab --</option>
-                        {availableSheets.map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
+                  <select
+                    value={readingSheetName}
+                    onChange={(e) => {
+                      if (e.target.value) setReadingSheetName(e.target.value);
+                    }}
+                    disabled={isScanning}
+                    className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none disabled:opacity-50"
+                  >
+                    {availableSheets.length > 0 ? (
+                      availableSheets.map(s => <option key={s} value={s}>{s}</option>)
+                    ) : (
+                      <>
+                        <option value="luyện đọc">luyện đọc (Mặc định)</option>
+                        <option value="">-- Đang quét danh sách tab... --</option>
+                      </>
                     )}
-                  </div>
+                  </select>
                 </div>
 
                 {/* Grammar Tab */}
                 <div>
                   <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Tab Ngữ pháp</label>
-                  <div className="flex gap-2">
-                    <input 
-                      type="text" 
-                      value={grammarSheetName}
-                      onChange={(e) => setGrammarSheetName(e.target.value)}
-                      placeholder='Mặc định: "ngữ pháp"'
-                      className="flex-1 px-3 py-2 bg-white border border-neutral-200 rounded-lg text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none"
-                    />
-                    {availableSheets.length > 0 && (
-                      <select
-                        value={availableSheets.includes(grammarSheetName) ? grammarSheetName : ""}
-                        onChange={(e) => {
-                          if (e.target.value) setGrammarSheetName(e.target.value);
-                        }}
-                        className="px-2 py-2 bg-white border border-neutral-200 rounded-lg text-sm max-w-[150px] focus:ring-1 focus:ring-emerald-500 outline-none"
-                      >
-                        <option value="">-- Chọn tab --</option>
-                        {availableSheets.map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
+                  <select
+                    value={grammarSheetName}
+                    onChange={(e) => {
+                      if (e.target.value) setGrammarSheetName(e.target.value);
+                    }}
+                    disabled={isScanning}
+                    className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none disabled:opacity-50"
+                  >
+                    {availableSheets.length > 0 ? (
+                      availableSheets.map(s => <option key={s} value={s}>{s}</option>)
+                    ) : (
+                      <>
+                        <option value="ngữ pháp">ngữ pháp (Mặc định)</option>
+                        <option value="">-- Đang quét danh sách tab... --</option>
+                      </>
                     )}
-                  </div>
+                  </select>
                 </div>
 
                 {/* OCR Tab */}
                 <div>
                   <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Tab Nhật ký OCR</label>
-                  <div className="flex gap-2">
-                    <input 
-                      type="text" 
-                      value={ocrSheetName}
-                      onChange={(e) => setOcrSheetName(e.target.value)}
-                      placeholder='Mặc định: "OCR"'
-                      className="flex-1 px-3 py-2 bg-white border border-neutral-200 rounded-lg text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none"
-                    />
-                    {availableSheets.length > 0 && (
-                      <select
-                        value={availableSheets.includes(ocrSheetName) ? ocrSheetName : ""}
-                        onChange={(e) => {
-                          if (e.target.value) setOcrSheetName(e.target.value);
-                        }}
-                        className="px-2 py-2 bg-white border border-neutral-200 rounded-lg text-sm max-w-[150px] focus:ring-1 focus:ring-emerald-500 outline-none"
-                      >
-                        <option value="">-- Chọn tab --</option>
-                        {availableSheets.map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
+                  <select
+                    value={ocrSheetName}
+                    onChange={(e) => {
+                      if (e.target.value) setOcrSheetName(e.target.value);
+                    }}
+                    disabled={isScanning}
+                    className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none disabled:opacity-50"
+                  >
+                    {availableSheets.length > 0 ? (
+                      availableSheets.map(s => <option key={s} value={s}>{s}</option>)
+                    ) : (
+                      <>
+                        <option value="OCR">OCR (Mặc định)</option>
+                        <option value="">-- Đang quét danh sách tab... --</option>
+                      </>
                     )}
-                  </div>
+                  </select>
                 </div>
               </div>
             )}

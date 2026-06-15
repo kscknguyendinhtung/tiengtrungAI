@@ -203,9 +203,22 @@ export default function VocabTab({
     ));
   };
 
-  const deleteWordByWord = (word: string) => {
-    if (confirm(`Xóa từ "${word}"?`)) {
-      setVocabList(prev => prev.filter(v => v.chinese !== word));
+  const deleteWordByWord = (item: Vocabulary) => {
+    if (confirm(`Xóa từ "${item.chinese}"?`)) {
+      setVocabList(prev => {
+        const index = prev.indexOf(item);
+        if (index !== -1) {
+          const newList = [...prev];
+          newList.splice(index, 1);
+          return newList;
+        }
+        return prev.filter(v => 
+          v.chinese !== item.chinese || 
+          v.meaning !== item.meaning || 
+          v.pinyin !== item.pinyin || 
+          v.topic !== item.topic
+        );
+      });
     }
   };
 
@@ -489,7 +502,7 @@ export default function VocabTab({
                 <button 
                   onClick={() => {
                     if (editingItem) {
-                      deleteWordByWord(editingItem.chinese);
+                      deleteWordByWord(editingItem);
                       setShowEditModal(false);
                     }
                   }}
@@ -604,7 +617,7 @@ export default function VocabTab({
   );
 }
 
-function TableView({ list, onToggleMastered, onDelete, onEdit, onSelect }: { list: Vocabulary[], onToggleMastered: (word: string) => void, onDelete: (word: string) => void, onEdit: (item: Vocabulary) => void, onSelect: (item: Vocabulary) => void, key?: string }) {
+function TableView({ list, onToggleMastered, onDelete, onEdit, onSelect }: { list: Vocabulary[], onToggleMastered: (word: string) => void, onDelete: (item: Vocabulary) => void, onEdit: (item: Vocabulary) => void, onSelect: (item: Vocabulary) => void, key?: string }) {
   return (
     <motion.div 
       initial={{ opacity: 0, y: 10 }}
@@ -631,7 +644,7 @@ function TableView({ list, onToggleMastered, onDelete, onEdit, onSelect }: { lis
             <button onClick={() => onEdit(item)} className="p-2 text-neutral-300 hover:text-emerald-500">
               <Edit2 className="w-4 h-4" />
             </button>
-            <button onClick={() => onDelete(item.chinese)} className="p-2 text-neutral-300 hover:text-red-500">
+            <button onClick={() => onDelete(item)} className="p-2 text-neutral-300 hover:text-red-500">
               <Trash2 className="w-4 h-4" />
             </button>
           </div>
@@ -644,7 +657,7 @@ function TableView({ list, onToggleMastered, onDelete, onEdit, onSelect }: { lis
   );
 }
 
-function FlashcardView({ list, onToggleMastered, onEdit, onDelete, initialIndex = 0 }: { list: Vocabulary[], onToggleMastered: (word: string) => void, onEdit: (item: Vocabulary) => void, onDelete: (word: string) => void, initialIndex?: number, key?: string }) {
+function FlashcardView({ list, onToggleMastered, onEdit, onDelete, initialIndex = 0 }: { list: Vocabulary[], onToggleMastered: (word: string) => void, onEdit: (item: Vocabulary) => void, onDelete: (item: Vocabulary) => void, initialIndex?: number, key?: string }) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [isFlipped, setIsFlipped] = useState(false);
   const [shuffleOrder, setShuffleOrder] = useState<number[]>([]);
@@ -784,11 +797,7 @@ function FlashcardView({ list, onToggleMastered, onEdit, onDelete, initialIndex 
             <Edit2 className="w-4 h-4" />
           </button>
           <button 
-            onClick={() => {
-              if (confirm(`Xóa từ "${currentItem.chinese}"?`)) {
-                onDelete(currentItem.chinese);
-              }
-            }}
+            onClick={() => onDelete(currentItem)}
             className="p-2 rounded-lg bg-neutral-100 text-neutral-400 hover:text-red-500 transition-colors"
             title="Xóa từ"
           >
