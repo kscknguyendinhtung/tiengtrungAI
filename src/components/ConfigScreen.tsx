@@ -402,7 +402,7 @@ export default function ConfigScreen({ initialConfig, onSave, onSync }: Props) {
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-emerald-800 flex items-center gap-1.5">
                 <Zap className="w-4 h-4 text-emerald-600 fill-emerald-500" />
-                Mã Google Apps Script Tối Ưu Tốc Độ
+                Mã Google Apps Script Chuẩn
               </span>
               <button
                 type="button"
@@ -414,7 +414,7 @@ export default function ConfigScreen({ initialConfig, onSave, onSync }: Props) {
               </button>
             </div>
             <p className="text-[11px] text-emerald-700 leading-relaxed">
-              Mã mới nhất giúp tải và lưu dữ liệu trong <b>1 lần gọi duy nhất</b>, tăng tốc gấp 5 lần và giải quyết triệt để lỗi không đồng bộ được hoặc bị khóa bảng tính.
+              Mã Apps Script tiêu chuẩn kết nối trực tiếp với các sheet <b>từ vựng</b>, <b>luyện đọc</b> và <b>ngữ pháp</b> trên Google Sheet của bạn.
             </p>
           </div>
 
