@@ -32,7 +32,12 @@ export const googleSheetService = {
       ]);
 
       if (!vocabRes.ok || !readingRes.ok || !grammarRes.ok) {
-        throw new Error("HTTP responses were not all OK");
+        console.error("HTTP errors:", {
+          vocab: vocabRes.ok ? "OK" : vocabRes.statusText,
+          reading: readingRes.ok ? "OK" : readingRes.statusText,
+          grammar: grammarRes.ok ? "OK" : grammarRes.statusText
+        });
+        throw new Error(`HTTP responses were not all OK: Vocab=${vocabRes.statusText}, Reading=${readingRes.statusText}, Grammar=${grammarRes.statusText}`);
       }
 
       const vocabData = await vocabRes.json();

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { 
   Search, 
   Plus, 
@@ -205,20 +205,7 @@ export default function VocabTab({
 
   const deleteWordByWord = (item: Vocabulary) => {
     if (confirm(`Xóa từ "${item.chinese}"?`)) {
-      setVocabList(prev => {
-        const index = prev.indexOf(item);
-        if (index !== -1) {
-          const newList = [...prev];
-          newList.splice(index, 1);
-          return newList;
-        }
-        return prev.filter(v => 
-          v.chinese !== item.chinese || 
-          v.meaning !== item.meaning || 
-          v.pinyin !== item.pinyin || 
-          v.topic !== item.topic
-        );
-      });
+      setVocabList(prev => prev.filter(v => v.id !== item.id));
     }
   };
 
@@ -234,7 +221,7 @@ export default function VocabTab({
   };
 
   const handleSelectWord = (item: Vocabulary) => {
-    const index = filteredList.findIndex(v => v.chinese === item.chinese);
+    const index = filteredList.findIndex(v => v.id === item.id);
     if (index !== -1) {
       setInitialFlashcardIndex(index);
       setViewMode("flashcard");
@@ -255,7 +242,7 @@ export default function VocabTab({
 
   const saveEdit = () => {
     if (!editingItem) return;
-    setVocabList(prev => prev.map(v => v.chinese === editingItem.chinese ? editingItem : v));
+    setVocabList(prev => prev.map(v => v.id === editingItem.id ? editingItem : v));
     setShowEditModal(false);
     setEditingItem(null);
   };
@@ -430,8 +417,8 @@ export default function VocabTab({
                 <input 
                   type="text" 
                   value={editingItem.chinese}
-                  disabled
-                  className="w-full px-4 py-2 bg-neutral-100 border-none rounded-xl outline-none opacity-50"
+                  onChange={(e) => setEditingItem({...editingItem, chinese: e.target.value})}
+                  className="w-full px-4 py-2 bg-neutral-100 border-none rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -690,6 +677,95 @@ function FlashcardView({ list, onToggleMastered, onEdit, onDelete, initialIndex 
     ttsService.speak(text, lang);
   };
 
+  const toggleMastered = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onToggleMastered(currentItem.chinese);
+  };
+
+  const handleCardClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    if (y < rect.height / 2) {
+      setIsFlipped(!isFlipped);
+    } else {
+      toggleMastered(e);
+    }
+  };
+
+  const nextCard = useCallback(() => {
+    setIsFlipped(false);
+    setTimeout(() => {
+      setCurrentIndex((prev) => (prev + 1) % list.length);
+    }, 150);
+  }, [list.length]);
+
+  const prevCard = useCallback(() => {
+    setIsFlipped(false);
+    setCurrentIndex((prev) => (prev - 1 + list.length) % list.length);
+  }, [list.length]);
+
+  // Refs for media session handlers
+  const currentItemRef = useRef(currentItem);
+  const onToggleMasteredRef = useRef(onToggleMastered);
+
+  useEffect(() => {
+    currentItemRef.current = currentItem;
+    onToggleMasteredRef.current = onToggleMastered;
+  }, [currentItem, onToggleMastered]);
+
+  // Keyboard and media shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      switch (e.key) {
+        case ' ':
+          e.preventDefault();
+          onToggleMasteredRef.current(currentItemRef.current.chinese);
+          break;
+        case 'ArrowLeft':
+          prevCard();
+          break;
+        case 'ArrowRight':
+          nextCard();
+          break;
+        case 'ArrowUp':
+        case 'ArrowDown':
+          setIsFlipped(prev => !prev);
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    // Media Session for Bluetooth headset
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.setActionHandler('play', () => {
+        onToggleMasteredRef.current(currentItemRef.current.chinese);
+      });
+      navigator.mediaSession.setActionHandler('pause', () => {
+        onToggleMasteredRef.current(currentItemRef.current.chinese);
+      });
+    }
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.setActionHandler('play', null);
+        navigator.mediaSession.setActionHandler('pause', null);
+      }
+    };
+  }, [prevCard, nextCard, setIsFlipped]);
+
+  // Update Media Session Metadata
+  useEffect(() => {
+    if ('mediaSession' in navigator && currentItem) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: currentItem.chinese,
+        artist: currentItem.meaning,
+        album: 'Học tiếng Trung'
+      });
+    }
+  }, [currentItem]);
+
   // Auto-play logic
   useEffect(() => {
     let timer: any;
@@ -732,16 +808,6 @@ function FlashcardView({ list, onToggleMastered, onEdit, onDelete, initialIndex 
     setShuffleOrder(newOrder);
     setCurrentIndex(0);
     setIsFlipped(false);
-  };
-
-  const nextCard = () => {
-    setIsFlipped(false);
-    setCurrentIndex((prev) => (prev + 1) % list.length);
-  };
-
-  const prevCard = () => {
-    setIsFlipped(false);
-    setCurrentIndex((prev) => (prev - 1 + list.length) % list.length);
   };
 
   if (!currentItem) return <div className="text-center py-20 text-neutral-400">Chưa có từ vựng để học.</div>;
@@ -808,15 +874,14 @@ function FlashcardView({ list, onToggleMastered, onEdit, onDelete, initialIndex 
 
       <div 
         className="relative h-80 perspective-1000 cursor-pointer"
-        onClick={() => setIsFlipped(!isFlipped)}
+        onClick={handleCardClick}
       >
         <motion.div 
           animate={{ rotateY: isFlipped ? 180 : 0 }}
-          transition={{ type: "spring", stiffness: 260, damping: 20 }}
+          transition={{ duration: 0.1 }}
           className="w-full h-full relative preserve-3d"
         >
-          {/* Front */}
-          <div className="absolute inset-0 backface-hidden bg-white rounded-[2rem] shadow-xl border border-neutral-200 flex flex-col items-center justify-center p-8 text-center">
+              <div className="absolute inset-0 backface-hidden bg-white rounded-[2rem] shadow-xl border border-neutral-200 flex flex-col items-center justify-center p-8 text-center" style={{ visibility: isFlipped ? 'hidden' : 'visible' }}>
             {frontSide === "chinese" ? (
               <>
                 <div className="text-6xl font-bold text-neutral-800 mb-4">{currentItem.chinese}</div>
@@ -838,7 +903,7 @@ function FlashcardView({ list, onToggleMastered, onEdit, onDelete, initialIndex 
           </div>
 
           {/* Back */}
-          <div className="absolute inset-0 backface-hidden bg-emerald-600 rounded-[2rem] shadow-xl text-white flex flex-col items-center justify-center p-8 text-center rotate-y-180">
+          <div className="absolute inset-0 backface-hidden bg-emerald-600 rounded-[2rem] shadow-xl text-white flex flex-col items-center justify-center p-8 text-center rotate-y-180" style={{ visibility: isFlipped ? 'visible' : 'hidden' }}>
             {frontSide === "chinese" ? (
               <>
                 <div className="text-3xl font-bold mb-2">{currentItem.meaning}</div>
@@ -871,6 +936,12 @@ function FlashcardView({ list, onToggleMastered, onEdit, onDelete, initialIndex 
           className={`p-4 rounded-full shadow-md transition-all ${currentItem.isMastered ? 'bg-emerald-100 text-emerald-600' : 'bg-white text-neutral-300'}`}
         >
           <CheckCircle2 className="w-8 h-8" />
+        </button>
+        <button 
+          onClick={() => setIsFlipped(!isFlipped)}
+          className="p-4 bg-emerald-600 rounded-full shadow-md text-white"
+        >
+          <RefreshCw className="w-8 h-8" />
         </button>
         <button onClick={nextCard} className="p-4 bg-white rounded-full shadow-md text-neutral-600"><ChevronRight className="w-8 h-8" /></button>
       </div>

@@ -29,7 +29,19 @@ import { Sparkles, Gamepad2 } from "lucide-react";
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>("ocr");
   const [config, setConfig] = useState<AppConfig | null>(null);
-  const [vocabList, setVocabList] = useState<Vocabulary[]>([]);
+  const [vocabList, _setVocabList] = useState<Vocabulary[]>([]);
+  const setVocabList = React.useCallback((value: Vocabulary[] | ((prev: Vocabulary[]) => Vocabulary[])) => {
+    _setVocabList(prev => {
+      const next = typeof value === "function" ? value(prev) : value;
+      return next.map((v, i) => {
+        if (v.id) return v;
+        return {
+          ...v,
+          id: `${Date.now()}-${i}-${Math.random().toString(36).substring(2, 9)}`
+        };
+      });
+    });
+  }, []);
   const [readingSentences, setReadingSentences] = useState<ReadingSentence[]>([]);
   const [grammarPoints, setGrammarPoints] = useState<GrammarPoint[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
