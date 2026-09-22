@@ -18,8 +18,14 @@ interface Props {
 
 export default function ReadingTab({ sentences, setSentences, vocabList, onUpload, isSyncing, onAnalyzeGrammar, onAddVocab, onError }: Props) {
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [volume, setVolume] = useState(() => ttsService.getVolume());
   const [addingWord, setAddingWord] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  const handleVolumeChange = (newVol: number) => {
+    setVolume(newVol);
+    ttsService.setVolume(newVol);
+  };
 
   // Helper to find the best match in vocabList for a given string starting at index
   const findBestMatch = (text: string, startIndex: number) => {
@@ -104,8 +110,8 @@ export default function ReadingTab({ sentences, setSentences, vocabList, onUploa
       animate={{ opacity: 1 }}
       className="p-4 space-y-6"
     >
-      <div className="flex items-center gap-3">
-        <div className="flex-1 flex items-center justify-between bg-white p-3 rounded-2xl border border-neutral-200 shadow-sm">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="flex items-center justify-between bg-white p-3 rounded-2xl border border-neutral-200 shadow-sm">
           <span className="text-sm font-bold text-neutral-500">Tốc độ: {playbackSpeed}x</span>
           <input 
             type="range" 
@@ -117,6 +123,23 @@ export default function ReadingTab({ sentences, setSentences, vocabList, onUploa
             className="w-24 accent-emerald-600"
           />
         </div>
+        <div className="flex items-center justify-between bg-white p-3 rounded-2xl border border-neutral-200 shadow-sm">
+          <span className="text-sm font-bold text-neutral-500 flex items-center gap-1.5">
+            <Volume2 className="w-4 h-4 text-emerald-600" />
+            Âm lượng: {Math.round(volume * 100)}%
+          </span>
+          <input 
+            type="range" 
+            min="0.5" 
+            max="1.5" 
+            step="0.1" 
+            value={volume}
+            onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+            className="w-24 accent-emerald-600"
+          />
+        </div>
+      </div>
+      <div className="flex items-center justify-end gap-3">
         <button 
           onClick={async () => {
             const allText = sentences.map(s => s.chinese).join(" ");

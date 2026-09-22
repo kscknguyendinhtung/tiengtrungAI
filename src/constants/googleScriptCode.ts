@@ -1,13 +1,13 @@
-/**
+export const GOOGLE_APPS_SCRIPT_CODE = `/**
  * GOOGLE APPS SCRIPT CODE (BẢN TỐI ƯU SIÊU TỐC ĐỘ)
  * 
  * Hướng dẫn:
- * 1. Mở https://script.google.com/
- * 2. Mở dự án Apps Script của bạn hoặc tạo mới.
- * 3. Dán toàn bộ mã nguồn này thay thế nội dung cũ.
- * 4. Nhấn Deploy > New Deployment (hoặc Manage deployments > Edit > New version).
- * 5. Chọn loại "Web App", Execute as: "Me", Who has access: "Anyone".
- * 6. Sao chép URL Web App dán vào ứng dụng tiengtrungAI.
+ * 1. Mở file Google Sheet của bạn.
+ * 2. Mở Extensions (Tiện ích mở rộng) > Apps Script.
+ * 3. Xóa hết mã cũ và dán toàn bộ mã này vào.
+ * 4. Nhấn Deploy (Triển khai) > Manage deployments (Quản lý bản triển khai) > Edit (Chỉnh sửa biểu tượng cây bút).
+ * 5. Chọn Version: "New version" (Phiên bản mới) > Nhấn Deploy.
+ * 6. (Hoặc nếu tạo mới: Deploy > New Deployment > Loại "Web App", Execute as: "Me", Access: "Anyone").
  */
 
 function doGet(e) {
@@ -161,3 +161,4 @@ function doPost(e) {
     return ContentService.createTextOutput('Error: ' + err.toString()).setMimeType(ContentService.MimeType.TEXT);
   }
 }
+`;

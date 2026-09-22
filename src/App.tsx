@@ -9,7 +9,10 @@ import {
   ChevronRight,
   ChevronLeft,
   Key,
-  MessageCircle
+  MessageCircle,
+  CheckCircle2,
+  AlertTriangle,
+  X
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Vocabulary, AppConfig, ReadingSentence, GrammarPoint } from "./types";
@@ -45,6 +48,14 @@ export default function App() {
   const [readingSentences, setReadingSentences] = useState<ReadingSentence[]>([]);
   const [grammarPoints, setGrammarPoints] = useState<GrammarPoint[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [toastMessage, setToastMessage] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
+
+  const showToast = (text: string, type: "success" | "error" | "info" = "success") => {
+    setToastMessage({ type, text });
+    setTimeout(() => {
+      setToastMessage(prev => prev?.text === text ? null : prev);
+    }, 4000);
+  };
 
   // Filter States (Shared between Vocab and Game)
   const [searchQuery, setSearchQuery] = useState("");
@@ -75,7 +86,10 @@ export default function App() {
   }, [config, vocabList, readingSentences, grammarPoints]);
 
   const handleSync = async () => {
-    if (!config?.scriptUrl || !config?.sheetUrl) return;
+    if (!config?.scriptUrl || !config?.sheetUrl) {
+      showToast("Chưa có cấu hình Google Sheet. Vui lòng vào Cài đặt để điền link.", "info");
+      return;
+    }
     setIsSyncing(true);
     try {
       const sheetId = extractSheetId(config.sheetUrl);
@@ -91,12 +105,13 @@ export default function App() {
         setVocabList(res.vocab);
         setReadingSentences(res.reading);
         setGrammarPoints(res.grammar);
+        showToast(`Đồng bộ thành công: ${res.vocab.length} từ vựng, ${res.reading.length} câu đọc, ${res.grammar.length} ngữ pháp.`, "success");
       } else {
-        alert("Không thể tải hoặc đồng bộ dữ liệu. Hãy đảm bảo bạn đã điền đúng link Apps Script Web App và file Google Sheet có cột tương ứng.");
+        showToast("Không thể tải dữ liệu từ Google Sheet. Hãy kiểm tra lại link Web App và quyền truy cập.", "error");
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert("Đồng bộ thất bại do lỗi kết nối.");
+      showToast(e?.message || "Đồng bộ thất bại do lỗi kết nối.", "error");
     } finally {
       setIsSyncing(false);
     }
@@ -119,6 +134,7 @@ export default function App() {
         setVocabList(res.vocab);
         setReadingSentences(res.reading);
         setGrammarPoints(res.grammar);
+        showToast(`Đã lưu cấu hình và đồng bộ ${res.vocab.length} từ vựng!`, "success");
       }
     } catch (e) {
       console.error("Auto sync on save failed:", e);
@@ -128,20 +144,34 @@ export default function App() {
   };
 
   const handleUpload = async () => {
-    if (!config?.scriptUrl || !config?.sheetUrl) return;
+    if (!config?.scriptUrl || !config?.sheetUrl) {
+      showToast("Chưa có cấu hình Google Sheet. Vui lòng vào Cài đặt để điền link.", "info");
+      return;
+    }
     setIsSyncing(true);
-    const sheetId = extractSheetId(config.sheetUrl);
-    await googleSheetService.syncToSheet(
-      config.scriptUrl, 
-      sheetId, 
-      vocabList, 
-      readingSentences, 
-      grammarPoints,
-      config.vocabSheetName,
-      config.readingSheetName,
-      config.grammarSheetName
-    );
-    setIsSyncing(false);
+    try {
+      const sheetId = extractSheetId(config.sheetUrl);
+      const ok = await googleSheetService.syncToSheet(
+        config.scriptUrl, 
+        sheetId, 
+        vocabList, 
+        readingSentences, 
+        grammarPoints,
+        config.vocabSheetName,
+        config.readingSheetName,
+        config.grammarSheetName
+      );
+      if (ok) {
+        showToast(`Đã lưu dữ liệu lên Google Sheet thành công (${vocabList.length} từ vựng)!`, "success");
+      } else {
+        showToast("Tải lên thất bại. Vui lòng kiểm tra lại liên kết Google Sheet.", "error");
+      }
+    } catch (err: any) {
+      console.error("Upload error:", err);
+      showToast(err?.message || "Lỗi khi tải dữ liệu lên Google Sheet.", "error");
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const extractSheetId = (url: string) => {
@@ -235,6 +265,42 @@ export default function App() {
           </button>
         </div>
       </header>
+
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -16, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -16, scale: 0.96 }}
+            transition={{ duration: 0.2 }}
+            className={`fixed top-16 left-1/2 -translate-x-1/2 z-[100] max-w-lg w-[92%] px-4 py-2.5 rounded-xl shadow-lg border text-xs md:text-sm font-medium flex items-center justify-between gap-3 ${
+              toastMessage.type === 'success' 
+                ? 'bg-emerald-50 border-emerald-300 text-emerald-900' 
+                : toastMessage.type === 'error'
+                ? 'bg-red-50 border-red-300 text-red-900'
+                : 'bg-blue-50 border-blue-300 text-blue-900'
+            }`}
+          >
+            <div className="flex items-center gap-2.5 overflow-hidden">
+              {toastMessage.type === 'success' ? (
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+              ) : toastMessage.type === 'error' ? (
+                <AlertTriangle className="w-5 h-5 text-red-600 shrink-0" />
+              ) : (
+                <RefreshCw className="w-5 h-5 text-blue-600 shrink-0" />
+              )}
+              <span className="truncate">{toastMessage.text}</span>
+            </div>
+            <button
+              onClick={() => setToastMessage(null)}
+              className="p-1 text-neutral-400 hover:text-neutral-600 rounded-md shrink-0"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto pb-20">

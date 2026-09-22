@@ -1,11 +1,27 @@
 export const ttsService = {
-  speak(text: string, lang: "zh-CN" | "vi-VN" = "zh-CN", rate: number = 1) {
+  getVolume(): number {
+    const saved = localStorage.getItem("tiengtrungAI_volume");
+    // Default to 1.5 (150%) as requested
+    return saved !== null ? parseFloat(saved) : 1.5;
+  },
+
+  setVolume(vol: number) {
+    localStorage.setItem("tiengtrungAI_volume", String(vol));
+  },
+
+  speak(text: string, lang: "zh-CN" | "vi-VN" = "zh-CN", rate: number = 1, volume?: number) {
+    if (!window.speechSynthesis) return;
+
     // Cancel any ongoing speech
     window.speechSynthesis.cancel();
 
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = lang;
     utterance.rate = rate;
+
+    // Set volume (1.5 = 150%)
+    const targetVolume = volume !== undefined ? volume : this.getVolume();
+    utterance.volume = targetVolume;
 
     const attemptSpeak = () => {
       const voices = window.speechSynthesis.getVoices();
@@ -48,6 +64,8 @@ export const ttsService = {
   },
 
   stop() {
-    window.speechSynthesis.cancel();
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
   }
 };

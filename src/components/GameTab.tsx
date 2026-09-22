@@ -18,6 +18,7 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { Vocabulary } from "../types";
 import { geminiService } from "../services/geminiService";
+import { ttsService } from "../services/ttsService";
 
 interface GameData {
   related: { chinese: string; pinyin: string; meaning: string; reason: string; hanViet: string }[];
@@ -61,6 +62,7 @@ const MillionaireQuiz = ({ vocabList, filteredVocab, onBack, onError }: Milliona
     zhUtterance.lang = 'zh-CN';
     zhUtterance.voice = getVoice('zh-CN') || null;
     zhUtterance.rate = 0.85;
+    zhUtterance.volume = ttsService.getVolume();
     window.speechSynthesis.speak(zhUtterance);
   };
 
@@ -69,6 +71,7 @@ const MillionaireQuiz = ({ vocabList, filteredVocab, onBack, onError }: Milliona
     viUtterance.lang = 'vi-VN';
     viUtterance.voice = getVoice('vi-VN') || null;
     viUtterance.rate = 0.95;
+    viUtterance.volume = ttsService.getVolume();
     window.speechSynthesis.speak(viUtterance);
   };
 
@@ -511,6 +514,7 @@ export default function GameTab({
       await new Promise<void>((resolve) => {
         const utterance = new SpeechSynthesisUtterance(item.text);
         utterance.lang = item.lang;
+        utterance.volume = ttsService.getVolume();
         if (item.lang === 'zh-CN' && zhVoice) utterance.voice = zhVoice;
         if (item.lang === 'vi-VN' && viVoice) utterance.voice = viVoice;
         utterance.rate = item.lang === 'zh-CN' ? 0.85 : 1.0;

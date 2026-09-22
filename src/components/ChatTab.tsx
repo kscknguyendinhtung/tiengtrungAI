@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { GoogleGenAI, Modality } from "@google/genai";
+import { ttsService } from "../services/ttsService";
 
 interface Message {
   role: "user" | "model";
@@ -150,30 +151,7 @@ export default function ChatTab({ onError }: { onError: (error: any) => void | P
   };
 
   const speak = (text: string) => {
-    if (!window.speechSynthesis) return;
-    
-    // Small delay to ensure browser speech engine is ready
-    setTimeout(() => {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      
-      // Try to find a Chinese voice explicitly
-      const voices = window.speechSynthesis.getVoices();
-      const zhVoice = voices.find(v => 
-        v.lang.toLowerCase().includes("zh-cn") || 
-        v.lang.toLowerCase().includes("zh-tw") || 
-        v.lang.toLowerCase().includes("zh_cn") ||
-        v.name.toLowerCase().includes("chinese")
-      );
-      
-      if (zhVoice) {
-        utterance.voice = zhVoice;
-      }
-      
-      utterance.lang = "zh-CN";
-      utterance.rate = 0.9; // Slightly slower for better clarity
-      window.speechSynthesis.speak(utterance);
-    }, 100);
+    ttsService.speak(text, "zh-CN", 0.9);
   };
 
   return (

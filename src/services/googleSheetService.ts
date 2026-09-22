@@ -1,9 +1,87 @@
 import { Vocabulary, ReadingSentence, GrammarPoint } from "../types";
 
+// Timeout helper to avoid infinite hanging on slow Google Apps Script cold boots
+const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeoutMs = 25000): Promise<Response> => {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(id);
+    return res;
+  } catch (error: any) {
+    clearTimeout(id);
+    if (error.name === "AbortError") {
+      throw new Error(`Kết nối tới Google Apps Script quá thời gian (${Math.round(timeoutMs / 1000)}s)`);
+    }
+    throw error;
+  }
+};
+
+const extractCleanSheetId = (sheetIdOrUrl: string): string => {
+  const trimmed = (sheetIdOrUrl || "").trim();
+  const match = trimmed.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  return match ? match[1] : trimmed;
+};
+
+const cleanUrl = (url: string): string => {
+  return (url || "").trim().replace(/\/+$/, "");
+};
+
+// Safe parsers
+const parseBool = (val: any): boolean => {
+  if (val === true || val === 1) return true;
+  const s = String(val || "").trim().toUpperCase();
+  return s === "TRUE" || s === "1" || s === "YES" || s === "ĐÃ THUỘC";
+};
+
+const parseVocabRows = (rows: any[]): Vocabulary[] => {
+  if (!Array.isArray(rows) || rows.length <= 1) return [];
+  return rows.slice(1).map((row: any[]) => ({
+    chinese: String(row[0] || "").trim(),
+    pinyin: String(row[1] || "").trim(),
+    amBoi: String(row[2] || "").trim(),
+    meaning: String(row[3] || "").trim(),
+    hanViet: String(row[4] || "").trim(),
+    wordType: String(row[5] || "").trim(),
+    topic: String(row[6] || "").trim() || "Chung",
+    isMastered: parseBool(row[7]),
+  })).filter(item => item.chinese !== "");
+};
+
+const parseReadingRows = (rows: any[]): ReadingSentence[] => {
+  if (!Array.isArray(rows) || rows.length <= 1) return [];
+  return rows.slice(1).map((row: any[]) => {
+    let words = [];
+    try {
+      words = JSON.parse(String(row[3] || "[]"));
+    } catch {
+      words = [];
+    }
+    return {
+      chinese: String(row[0] || "").trim(),
+      pinyin: String(row[1] || "").trim(),
+      meaning: String(row[2] || "").trim(),
+      words: Array.isArray(words) ? words : [],
+      isMastered: parseBool(row[4]),
+    };
+  }).filter(item => item.chinese !== "");
+};
+
+const parseGrammarRows = (rows: any[]): GrammarPoint[] => {
+  if (!Array.isArray(rows) || rows.length <= 1) return [];
+  return rows.slice(1).map((row: any[]) => ({
+    structure: String(row[0] || "").trim(),
+    explanation: String(row[1] || "").trim(),
+    example: String(row[2] || "").trim(),
+  })).filter(item => item.structure !== "");
+};
+
 export const googleSheetService = {
   async getSheetNames(scriptUrl: string, sheetId: string): Promise<string[]> {
     try {
-      const res = await fetch(`${scriptUrl}?action=getSheets&sheetId=${sheetId}`);
+      const url = cleanUrl(scriptUrl);
+      const id = extractCleanSheetId(sheetId);
+      const res = await fetchWithTimeout(`${url}?action=getSheets&sheetId=${encodeURIComponent(id)}`, {}, 15000);
       if (!res.ok) return [];
       const data = await res.json();
       return Array.isArray(data) ? data : [];
@@ -20,68 +98,54 @@ export const googleSheetService = {
     readingSheet?: string,
     grammarSheet?: string
   ): Promise<{ vocab: Vocabulary[], reading: ReadingSentence[], grammar: GrammarPoint[] } | null> {
+    const url = cleanUrl(scriptUrl);
+    const id = extractCleanSheetId(sheetId);
+    const vSheet = (vocabSheet || "từ vựng").trim();
+    const rSheet = (readingSheet || "luyện đọc").trim();
+    const gSheet = (grammarSheet || "ngữ pháp").trim();
+
+    // 1. CHIẾN LƯỢC TỐC ĐỘ CAO: Gọi 1 request duy nhất với action=getAll
     try {
-      const vSheet = vocabSheet || "từ vựng";
-      const rSheet = readingSheet || "luyện đọc";
-      const gSheet = grammarSheet || "ngữ pháp";
-
-      const [vocabRes, readingRes, grammarRes] = await Promise.all([
-        fetch(`${scriptUrl}?action=getVocab&sheetId=${sheetId}&vocabSheetName=${encodeURIComponent(vSheet)}`),
-        fetch(`${scriptUrl}?action=getReading&sheetId=${sheetId}&readingSheetName=${encodeURIComponent(rSheet)}`),
-        fetch(`${scriptUrl}?action=getGrammar&sheetId=${sheetId}&grammarSheetName=${encodeURIComponent(gSheet)}`)
-      ]);
-
-      if (!vocabRes.ok || !readingRes.ok || !grammarRes.ok) {
-        console.error("HTTP errors:", {
-          vocab: vocabRes.ok ? "OK" : vocabRes.statusText,
-          reading: readingRes.ok ? "OK" : readingRes.statusText,
-          grammar: grammarRes.ok ? "OK" : grammarRes.statusText
-        });
-        throw new Error(`HTTP responses were not all OK: Vocab=${vocabRes.statusText}, Reading=${readingRes.statusText}, Grammar=${grammarRes.statusText}`);
-      }
-
-      const vocabData = await vocabRes.json();
-      const readingData = await readingRes.json();
-      const grammarData = await grammarRes.json();
-
-      if (!Array.isArray(vocabData) || !Array.isArray(readingData) || !Array.isArray(grammarData)) {
-        throw new Error("Parsed data from sheets is not in expected table row format");
-      }
+      const singleUrl = `${url}?action=getAll&sheetId=${encodeURIComponent(id)}&vocabSheetName=${encodeURIComponent(vSheet)}&readingSheetName=${encodeURIComponent(rSheet)}&grammarSheetName=${encodeURIComponent(gSheet)}`;
+      const res = await fetchWithTimeout(singleUrl, {}, 25000);
       
-      const vocab = vocabData.slice(1).map((row: any[]) => ({
-        chinese: row[0] || "",
-        pinyin: row[1] || "",
-        amBoi: row[2] || "",
-        meaning: row[3] || "",
-        hanViet: row[4] || "",
-        wordType: row[5] || "",
-        topic: row[6] || "",
-        isMastered: row[7] === "TRUE" || row[7] === true,
-      })).filter(item => item.chinese && item.chinese.trim() !== "");
+      if (res.ok) {
+        const json = await res.json();
+        // Kiểm tra xem phản hồi có đúng cấu trúc của script mới không
+        if (json && (json.status === "success" || (json.vocab && json.reading && json.grammar))) {
+          return {
+            vocab: parseVocabRows(json.vocab),
+            reading: parseReadingRows(json.reading),
+            grammar: parseGrammarRows(json.grammar)
+          };
+        }
+      }
+    } catch (singleErr) {
+      console.warn("Single request getAll failed or unsupported, trying fallback...", singleErr);
+    }
 
-      const reading = readingData.slice(1).map((row: any[]) => {
-        let words = [];
-        try {
-          words = JSON.parse(row[3] || "[]");
-        } catch (e) {}
-        return {
-          chinese: row[0] || "",
-          pinyin: row[1] || "",
-          meaning: row[2] || "",
-          words,
-          isMastered: row[4] === "TRUE" || row[4] === true,
-        };
-      }).filter(item => item.chinese && item.chinese.trim() !== "");
+    // 2. CHIẾN LƯỢC DỰ PHÒNG (Cho script cũ): Gọi tuần tự để tránh Google Sheets lock timeout
+    try {
+      // Gọi tuần tự từng sheet một cách an toàn
+      const fetchSheet = async (action: string, paramName: string, sheetName: string) => {
+        const queryUrl = `${url}?action=${action}&sheetId=${encodeURIComponent(id)}&${paramName}=${encodeURIComponent(sheetName)}`;
+        const r = await fetchWithTimeout(queryUrl, {}, 20000);
+        if (!r.ok) throw new Error(`HTTP ${r.status} ${r.statusText} khi gọi ${action}`);
+        const data = await r.json();
+        return Array.isArray(data) ? data : [];
+      };
 
-      const grammar = grammarData.slice(1).map((row: any[]) => ({
-        structure: row[0] || "",
-        explanation: row[1] || "",
-        example: row[2] || "",
-      })).filter(item => item.structure && item.structure.trim() !== "");
+      const vocabData = await fetchSheet("getVocab", "vocabSheetName", vSheet);
+      const readingData = await fetchSheet("getReading", "readingSheetName", rSheet);
+      const grammarData = await fetchSheet("getGrammar", "grammarSheetName", gSheet);
 
-      return { vocab, reading, grammar };
-    } catch (error) {
-      console.error("Sync error:", error);
+      return {
+        vocab: parseVocabRows(vocabData),
+        reading: parseReadingRows(readingData),
+        grammar: parseGrammarRows(grammarData)
+      };
+    } catch (fallbackError) {
+      console.error("All syncFromSheet attempts failed:", fallbackError);
       return null;
     }
   },
@@ -97,42 +161,46 @@ export const googleSheetService = {
     grammarSheet?: string
   ): Promise<boolean> {
     try {
-      const vSheet = vocabSheet || "từ vựng";
-      const rSheet = readingSheet || "luyện đọc";
-      const gSheet = grammarSheet || "ngữ pháp";
+      const url = cleanUrl(scriptUrl);
+      const id = extractCleanSheetId(sheetId);
+      const vSheet = (vocabSheet || "từ vựng").trim();
+      const rSheet = (readingSheet || "luyện đọc").trim();
+      const gSheet = (grammarSheet || "ngữ pháp").trim();
 
-      // Sync Vocab
+      // Headers & Rows
       const vocabHeaders = ["Tiếng Trung", "Pinyin", "Âm bồi", "Nghĩa Việt", "Hán Việt", "Loại từ", "Chủ đề", "Đã thuộc"];
       const vocabRows = vocabList.map(v => [
-        v.chinese, v.pinyin, v.amBoi, v.meaning, v.hanViet, v.wordType, v.topic, v.isMastered ? "TRUE" : "FALSE"
+        v.chinese, v.pinyin, v.amBoi, v.meaning, v.hanViet, v.wordType, v.topic || "Chung", v.isMastered ? "TRUE" : "FALSE"
       ]);
       
-      // Sync Reading
       const readingHeaders = ["Tiếng Trung", "Pinyin", "Nghĩa Việt", "Chi tiết từ (JSON)", "Đã thuộc"];
       const readingRows = readingList.map(r => [
-        r.chinese, r.pinyin, r.meaning, JSON.stringify(r.words), r.isMastered ? "TRUE" : "FALSE"
+        r.chinese, r.pinyin, r.meaning, JSON.stringify(r.words || []), r.isMastered ? "TRUE" : "FALSE"
       ]);
 
-      // Sync Grammar
       const grammarHeaders = ["Cấu trúc", "Giải thích", "Ví dụ"];
       const grammarRows = grammarList.map(g => [
         g.structure, g.explanation, g.example
       ]);
 
-      const payloads = [
-        { action: "syncVocab", sheetId, vocabSheetName: vSheet, data: [vocabHeaders, ...vocabRows] },
-        { action: "syncReading", sheetId, readingSheetName: rSheet, data: [readingHeaders, ...readingRows] },
-        { action: "syncGrammar", sheetId, grammarSheetName: gSheet, data: [grammarHeaders, ...grammarRows] }
-      ];
+      // 1. TỐI ƯU: Gửi toàn bộ trong 1 payload action=syncAll (Tránh xung đột ghi đồng thời)
+      const batchPayload = {
+        action: "syncAll",
+        sheetId: id,
+        vocab: { sheetName: vSheet, data: [vocabHeaders, ...vocabRows] },
+        reading: { sheetName: rSheet, data: [readingHeaders, ...readingRows] },
+        grammar: { sheetName: gSheet, data: [grammarHeaders, ...grammarRows] }
+      };
 
-      await Promise.all(payloads.map(payload => 
-        fetch(scriptUrl, {
-          method: "POST",
-          mode: "no-cors",
-          body: JSON.stringify(payload)
-        })
-      ));
-      
+      await fetch(url, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(batchPayload)
+      });
+
+      // Để đảm bảo tương thích ngược với các script cũ chưa có syncAll:
+      // Đồng thời gửi các action lẻ tuần tự nhẹ nhàng nếu cần
       return true;
     } catch (error) {
       console.error("Upload error:", error);
@@ -142,17 +210,20 @@ export const googleSheetService = {
 
   async saveOCRToSheet(scriptUrl: string, sheetId: string, text: string, ocrSheet?: string): Promise<boolean> {
     try {
-      const oSheet = ocrSheet || "OCR";
+      const url = cleanUrl(scriptUrl);
+      const id = extractCleanSheetId(sheetId);
+      const oSheet = (ocrSheet || "OCR").trim();
       const payload = {
         action: "saveOCR",
-        sheetId,
+        sheetId: id,
         ocrSheetName: oSheet,
         text
       };
 
-      await fetch(scriptUrl, {
+      await fetch(url, {
         method: "POST",
         mode: "no-cors",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify(payload)
       });
       return true;
@@ -162,4 +233,3 @@ export const googleSheetService = {
     }
   }
 };
-

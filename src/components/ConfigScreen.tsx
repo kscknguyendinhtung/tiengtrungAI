@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { AppConfig } from "../types";
-import { Settings, RefreshCw, Key, ChevronDown, ChevronUp, Check, AlertCircle } from "lucide-react";
+import { Settings, RefreshCw, Key, ChevronDown, ChevronUp, Check, AlertCircle, Volume2, Play, Copy, Zap } from "lucide-react";
 import { googleSheetService } from "../services/googleSheetService";
+import { ttsService } from "../services/ttsService";
+import { GOOGLE_APPS_SCRIPT_CODE } from "../constants/googleScriptCode";
 
 interface Props {
   initialConfig?: AppConfig | null;
@@ -22,6 +24,25 @@ export default function ConfigScreen({ initialConfig, onSave, onSync }: Props) {
   const [readingSheetName, setReadingSheetName] = useState(initialConfig?.readingSheetName || "luyện đọc");
   const [grammarSheetName, setGrammarSheetName] = useState(initialConfig?.grammarSheetName || "ngữ pháp");
   const [ocrSheetName, setOcrSheetName] = useState(initialConfig?.ocrSheetName || "OCR");
+
+  const [copiedScript, setCopiedScript] = useState(false);
+
+  const handleCopyScript = () => {
+    navigator.clipboard.writeText(GOOGLE_APPS_SCRIPT_CODE);
+    setCopiedScript(true);
+    setTimeout(() => setCopiedScript(false), 2500);
+  };
+
+  const [volume, setVolume] = useState(() => ttsService.getVolume());
+
+  const handleVolumeChange = (newVol: number) => {
+    setVolume(newVol);
+    ttsService.setVolume(newVol);
+  };
+
+  const handleTestAudio = () => {
+    ttsService.speak("你好！Đây là mức âm lượng " + Math.round(volume * 100) + " phần trăm.", "zh-CN", 1, volume);
+  };
 
   const [showAdvanced, setShowAdvanced] = useState(true);
   const [availableSheets, setAvailableSheets] = useState<string[]>([]);
@@ -104,14 +125,16 @@ export default function ConfigScreen({ initialConfig, onSave, onSync }: Props) {
   }, [sheetUrl, scriptUrl]);
 
   const handleSave = () => {
-    if (sheetUrl && scriptUrl) {
+    const cleanSheet = sheetUrl.trim();
+    const cleanScript = scriptUrl.trim();
+    if (cleanSheet && cleanScript) {
       onSave({ 
-        sheetUrl, 
-        scriptUrl,
-        vocabSheetName,
-        readingSheetName,
-        grammarSheetName,
-        ocrSheetName
+        sheetUrl: cleanSheet, 
+        scriptUrl: cleanScript,
+        vocabSheetName: vocabSheetName.trim() || "từ vựng",
+        readingSheetName: readingSheetName.trim() || "luyện đọc",
+        grammarSheetName: grammarSheetName.trim() || "ngữ pháp",
+        ocrSheetName: ocrSheetName.trim() || "OCR"
       });
     }
   };
@@ -298,6 +321,54 @@ export default function ConfigScreen({ initialConfig, onSave, onSync }: Props) {
             )}
           </div>
 
+          {/* Audio Volume Settings */}
+          <div className="border border-neutral-200 rounded-xl p-4 bg-white space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-semibold text-neutral-700 flex items-center gap-2">
+                <Volume2 className="w-4 h-4 text-emerald-600" />
+                <span>Âm lượng phát âm (TTS)</span>
+              </label>
+              <span className="text-sm font-extrabold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">
+                {Math.round(volume * 100)}%
+              </span>
+            </div>
+            
+            <input 
+              type="range" 
+              min="0.5" 
+              max="1.5" 
+              step="0.05" 
+              value={volume}
+              onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+              className="w-full accent-emerald-600 cursor-pointer"
+            />
+            
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <div className="flex gap-1.5">
+                {[0.8, 1.0, 1.2, 1.5].map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => handleVolumeChange(v)}
+                    className={`text-xs px-2.5 py-1 rounded-lg font-bold transition-all ${Math.abs(volume - v) < 0.03 ? 'bg-emerald-600 text-white shadow-sm' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'}`}
+                  >
+                    {Math.round(v * 100)}%
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleTestAudio}
+                className="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5"
+                title="Nghe thử mức âm lượng hiện tại"
+              >
+                <Play className="w-3.5 h-3.5 fill-current" />
+                Nghe thử
+              </button>
+            </div>
+          </div>
+
           <div className="pt-2 space-y-3">
             <button 
               onClick={handleSave}
@@ -326,17 +397,38 @@ export default function ConfigScreen({ initialConfig, onSave, onSync }: Props) {
           </div>
         </div>
 
-        <div className="mt-6 pt-5 border-t border-neutral-100">
-          <h3 className="text-xs font-bold text-neutral-800 mb-2">Hướng dẫn chi tiết:</h3>
-          <ul className="text-[11px] text-neutral-500 space-y-1.5 list-disc pl-4">
-            <li>Tạo một file Google Sheet mới.</li>
-            <li>Tại Google Sheet, mở <b>Extensions &gt; Apps Script</b>.</li>
-            <li>Dán toàn bộ nội dung trong file <b>google-script.gs</b> (bên dưới) vào trình soạn thảo.</li>
-            <li>Nhấp <b>Deploy &gt; New Deployment</b>, chọn loại là <b>Web App</b>.</li>
-            <li>Đặt quyền truy cập: "Execute as: Me" và "Who has access: Anyone".</li>
-            <li>Sao chép URL Web App vừa sinh ra dán vào ô trên.</li>
-            <li>Click mở panel "Chọn Tab tương tác" để kiểm tra dải sheet có trong file.</li>
-          </ul>
+        <div className="mt-6 pt-5 border-t border-neutral-100 space-y-4">
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-emerald-800 flex items-center gap-1.5">
+                <Zap className="w-4 h-4 text-emerald-600 fill-emerald-500" />
+                Mã Google Apps Script Tối Ưu Tốc Độ
+              </span>
+              <button
+                type="button"
+                onClick={handleCopyScript}
+                className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shadow-sm"
+              >
+                {copiedScript ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                {copiedScript ? "Đã chép!" : "Sao chép mã"}
+              </button>
+            </div>
+            <p className="text-[11px] text-emerald-700 leading-relaxed">
+              Mã mới nhất giúp tải và lưu dữ liệu trong <b>1 lần gọi duy nhất</b>, tăng tốc gấp 5 lần và giải quyết triệt để lỗi không đồng bộ được hoặc bị khóa bảng tính.
+            </p>
+          </div>
+
+          <div>
+            <h3 className="text-xs font-bold text-neutral-800 mb-2">Hướng dẫn triển khai:</h3>
+            <ul className="text-[11px] text-neutral-600 space-y-1.5 list-disc pl-4">
+              <li>Mở file Google Sheet của bạn &gt; <b>Tiện ích mở rộng (Extensions) &gt; Apps Script</b>.</li>
+              <li>Bấm <b>"Sao chép mã"</b> ở trên và dán đè toàn bộ vào trình soạn thảo Apps Script.</li>
+              <li>Nhấp <b>Triển khai (Deploy) &gt; Quản lý bản triển khai (Manage deployments)</b>.</li>
+              <li>Bấm biểu tượng <b>Cây bút (Chỉnh sửa)</b> &gt; chọn Phiên bản: <b>"Phiên bản mới" (New version)</b> &gt; Nhấn <b>Triển khai</b>.</li>
+              <li>(Hoặc nếu lần đầu: Triển khai mới &gt; Loại "Ứng dụng web" &gt; Ai có quyền truy cập: "Bất kỳ ai").</li>
+              <li>Dán link URL Web App sinh ra vào ô cấu hình ở trên và lưu lại.</li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>

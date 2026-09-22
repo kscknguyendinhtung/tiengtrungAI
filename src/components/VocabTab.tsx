@@ -651,6 +651,13 @@ function FlashcardView({ list, onToggleMastered, onEdit, onDelete, initialIndex 
   const [isAutoPlaying, setIsAutoPlaying] = useState(false);
   const [autoPlayDelay, setAutoPlayDelay] = useState(4); // seconds
   const [frontSide, setFrontSide] = useState<"chinese" | "meaning">("chinese");
+  const [volume, setVolume] = useState(() => ttsService.getVolume());
+  const [showVolumePopup, setShowVolumePopup] = useState(false);
+
+  const handleVolumeChange = (newVol: number) => {
+    setVolume(newVol);
+    ttsService.setVolume(newVol);
+  };
 
   // Reset index when initialIndex changes
   useEffect(() => {
@@ -716,6 +723,28 @@ function FlashcardView({ list, onToggleMastered, onEdit, onDelete, initialIndex 
   // Keyboard and media shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Do not trigger shortcuts when typing inside an input, textarea, select, or contenteditable element
+      const target = e.target as HTMLElement | null;
+      const activeEl = document.activeElement as HTMLElement | null;
+      
+      const isTyping = (el: HTMLElement | null) => 
+        Boolean(el && (
+          el.tagName === 'INPUT' || 
+          el.tagName === 'TEXTAREA' || 
+          el.tagName === 'SELECT' || 
+          el.isContentEditable ||
+          el.getAttribute('role') === 'textbox'
+        ));
+
+      if (isTyping(target) || isTyping(activeEl)) {
+        return;
+      }
+
+      // Do not trigger when pressing modifier keys (e.g. Ctrl+Space, Cmd+Space for IME switching)
+      if (e.ctrlKey || e.altKey || e.metaKey) {
+        return;
+      }
+
       switch (e.key) {
         case ' ':
           e.preventDefault();
@@ -847,6 +876,47 @@ function FlashcardView({ list, onToggleMastered, onEdit, onDelete, initialIndex 
               <option value={4}>4s</option>
               <option value={5}>5s</option>
             </select>
+          </div>
+          <div className="relative">
+            <button 
+              onClick={() => setShowVolumePopup(!showVolumePopup)}
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${volume > 1 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-neutral-100 text-neutral-600'}`}
+              title="Chỉnh âm lượng phát âm (TTS)"
+            >
+              <Volume2 className="w-3.5 h-3.5 text-emerald-600" />
+              <span>{Math.round(volume * 100)}%</span>
+            </button>
+            {showVolumePopup && (
+              <div className="absolute right-0 top-full mt-1 bg-white p-3 rounded-xl shadow-xl border border-neutral-200 z-30 w-48 space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-neutral-700">
+                  <span className="flex items-center gap-1">
+                    <Volume2 className="w-3.5 h-3.5 text-emerald-600" />
+                    Âm lượng
+                  </span>
+                  <span className="text-emerald-600 font-extrabold">{Math.round(volume * 100)}%</span>
+                </div>
+                <input 
+                  type="range"
+                  min="0.5"
+                  max="1.5"
+                  step="0.1"
+                  value={volume}
+                  onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+                  className="w-full accent-emerald-600 cursor-pointer"
+                />
+                <div className="flex justify-between gap-1 pt-1">
+                  {[0.8, 1.0, 1.2, 1.5].map((v) => (
+                    <button
+                      key={v}
+                      onClick={() => handleVolumeChange(v)}
+                      className={`text-[10px] px-1.5 py-0.5 rounded font-semibold transition-all ${Math.abs(volume - v) < 0.05 ? 'bg-emerald-600 text-white shadow-sm' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'}`}
+                    >
+                      {Math.round(v * 100)}%
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           <button 
             onClick={handleShuffle} 
