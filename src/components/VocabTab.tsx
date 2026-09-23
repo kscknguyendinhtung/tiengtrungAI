@@ -652,11 +652,17 @@ function FlashcardView({ list, onToggleMastered, onEdit, onDelete, initialIndex 
   const [autoPlayDelay, setAutoPlayDelay] = useState(4); // seconds
   const [frontSide, setFrontSide] = useState<"chinese" | "meaning">("chinese");
   const [volume, setVolume] = useState(() => ttsService.getVolume());
+  const [rate, setRate] = useState(() => ttsService.getRate());
   const [showVolumePopup, setShowVolumePopup] = useState(false);
 
   const handleVolumeChange = (newVol: number) => {
     setVolume(newVol);
     ttsService.setVolume(newVol);
+  };
+  
+  const handleRateChange = (newRate: number) => {
+    setRate(newRate);
+    ttsService.setRate(newRate);
   };
 
   // Reset index when initialIndex changes
@@ -817,20 +823,20 @@ function FlashcardView({ list, onToggleMastered, onEdit, onDelete, initialIndex 
       if (isFlipped) {
         // Speak the back side
         if (frontSide === "chinese") {
-          speak(currentItem.meaning, "vi-VN");
+          speak(currentItem.meaning, "vi-VN", rate);
         } else {
-          speak(currentItem.chinese, "zh-CN");
+          speak(currentItem.chinese, "zh-CN", rate);
         }
       } else {
         // Speak the front side
         if (frontSide === "chinese") {
-          speak(currentItem.chinese, "zh-CN");
+          speak(currentItem.chinese, "zh-CN", rate);
         } else {
-          speak(currentItem.meaning, "vi-VN");
+          speak(currentItem.meaning, "vi-VN", rate);
         }
       }
     }
-  }, [isFlipped, currentItem, frontSide]);
+  }, [isFlipped, currentItem, frontSide, rate]);
 
   const handleShuffle = () => {
     const newOrder = [...shuffleOrder].sort(() => Math.random() - 0.5);
@@ -880,40 +886,52 @@ function FlashcardView({ list, onToggleMastered, onEdit, onDelete, initialIndex 
           <div className="relative">
             <button 
               onClick={() => setShowVolumePopup(!showVolumePopup)}
-              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${volume > 1 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-neutral-100 text-neutral-600'}`}
-              title="Chỉnh âm lượng phát âm (TTS)"
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${volume > 1 || rate !== 1 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-neutral-100 text-neutral-600'}`}
+              title="Cài đặt phát âm"
             >
               <Volume2 className="w-3.5 h-3.5 text-emerald-600" />
-              <span>{Math.round(volume * 100)}%</span>
+              <span>{Math.round(volume * 100)}% / {rate.toFixed(1)}x</span>
             </button>
             {showVolumePopup && (
-              <div className="absolute right-0 top-full mt-1 bg-white p-3 rounded-xl shadow-xl border border-neutral-200 z-30 w-48 space-y-2">
-                <div className="flex items-center justify-between text-xs font-bold text-neutral-700">
-                  <span className="flex items-center gap-1">
-                    <Volume2 className="w-3.5 h-3.5 text-emerald-600" />
-                    Âm lượng
-                  </span>
-                  <span className="text-emerald-600 font-extrabold">{Math.round(volume * 100)}%</span>
+              <div className="absolute right-0 top-full mt-1 bg-white p-4 rounded-xl shadow-xl border border-neutral-200 z-30 w-56 space-y-4">
+                {/* Volume */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-neutral-700">
+                    <span className="flex items-center gap-1">
+                      <Volume2 className="w-3.5 h-3.5 text-emerald-600" />
+                      Âm lượng
+                    </span>
+                    <span className="text-emerald-600 font-extrabold">{Math.round(volume * 100)}%</span>
+                  </div>
+                  <input 
+                    type="range"
+                    min="0.5"
+                    max="1.5"
+                    step="0.1"
+                    value={volume}
+                    onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+                    className="w-full accent-emerald-600 cursor-pointer"
+                  />
                 </div>
-                <input 
-                  type="range"
-                  min="0.5"
-                  max="1.5"
-                  step="0.1"
-                  value={volume}
-                  onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
-                  className="w-full accent-emerald-600 cursor-pointer"
-                />
-                <div className="flex justify-between gap-1 pt-1">
-                  {[0.8, 1.0, 1.2, 1.5].map((v) => (
-                    <button
-                      key={v}
-                      onClick={() => handleVolumeChange(v)}
-                      className={`text-[10px] px-1.5 py-0.5 rounded font-semibold transition-all ${Math.abs(volume - v) < 0.05 ? 'bg-emerald-600 text-white shadow-sm' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'}`}
-                    >
-                      {Math.round(v * 100)}%
-                    </button>
-                  ))}
+                
+                {/* Rate */}
+                <div className="space-y-2 pt-2 border-t border-neutral-100">
+                  <div className="flex items-center justify-between text-xs font-bold text-neutral-700">
+                    <span className="flex items-center gap-1">
+                      <RefreshCw className="w-3.5 h-3.5 text-emerald-600" />
+                      Tốc độ
+                    </span>
+                    <span className="text-emerald-600 font-extrabold">{rate.toFixed(1)}x</span>
+                  </div>
+                  <input 
+                    type="range"
+                    min="0.5"
+                    max="2"
+                    step="0.1"
+                    value={rate}
+                    onChange={(e) => handleRateChange(parseFloat(e.target.value))}
+                    className="w-full accent-emerald-600 cursor-pointer"
+                  />
                 </div>
               </div>
             )}
@@ -965,7 +983,7 @@ function FlashcardView({ list, onToggleMastered, onEdit, onDelete, initialIndex 
               </>
             )}
             <button 
-              onClick={(e) => { e.stopPropagation(); speak(frontSide === "chinese" ? currentItem.chinese : currentItem.meaning, frontSide === "chinese" ? "zh-CN" : "vi-VN"); }}
+              onClick={(e) => { e.stopPropagation(); speak(frontSide === "chinese" ? currentItem.chinese : currentItem.meaning, frontSide === "chinese" ? "zh-CN" : "vi-VN", rate); }}
               className="absolute top-6 right-6 p-2 bg-neutral-50 rounded-full text-neutral-300 hover:text-emerald-600"
             >
               <Volume2 className="w-6 h-6" />
@@ -990,7 +1008,7 @@ function FlashcardView({ list, onToggleMastered, onEdit, onDelete, initialIndex 
               {currentItem.wordType}
             </div>
             <button 
-              onClick={(e) => { e.stopPropagation(); speak(frontSide === "chinese" ? currentItem.meaning : currentItem.chinese, frontSide === "chinese" ? "vi-VN" : "zh-CN"); }}
+              onClick={(e) => { e.stopPropagation(); speak(frontSide === "chinese" ? currentItem.meaning : currentItem.chinese, frontSide === "chinese" ? "vi-VN" : "zh-CN", rate); }}
               className="absolute top-6 left-6 p-2 bg-white/10 rounded-full text-white/50 hover:text-white"
             >
               <Volume2 className="w-6 h-6" />
