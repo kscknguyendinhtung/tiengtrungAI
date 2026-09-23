@@ -649,7 +649,7 @@ function FlashcardView({ list, onToggleMastered, onEdit, onDelete, initialIndex 
   const [isFlipped, setIsFlipped] = useState(false);
   const [shuffleOrder, setShuffleOrder] = useState<number[]>([]);
   const [isAutoPlaying, setIsAutoPlaying] = useState(false);
-  const [autoPlayDelay, setAutoPlayDelay] = useState(4); // seconds
+  const [autoPlayDelay, setAutoPlayDelay] = useState<number | 'on-end'>(4); // seconds
   const [frontSide, setFrontSide] = useState<"chinese" | "meaning">("chinese");
   const [volume, setVolume] = useState(() => ttsService.getVolume());
   const [rate, setRate] = useState(() => ttsService.getRate());
@@ -686,8 +686,8 @@ function FlashcardView({ list, onToggleMastered, onEdit, onDelete, initialIndex 
   const displayIndex = shuffleOrder[currentIndex] ?? currentIndex;
   const currentItem = list[displayIndex];
 
-  const speak = (text: string, lang: "zh-CN" | "vi-VN" = "zh-CN") => {
-    ttsService.speak(text, lang);
+  const speak = (text: string, lang: "zh-CN" | "vi-VN" = "zh-CN", rate?: number, volume?: number, onEnd?: () => void) => {
+    ttsService.speak(text, lang, rate, volume, onEnd);
   };
 
   const toggleMastered = (e: React.MouseEvent) => {
@@ -804,7 +804,7 @@ function FlashcardView({ list, onToggleMastered, onEdit, onDelete, initialIndex 
   // Auto-play logic
   useEffect(() => {
     let timer: any;
-    if (isAutoPlaying && currentItem) {
+    if (isAutoPlaying && typeof autoPlayDelay === 'number' && currentItem) {
       timer = setTimeout(() => {
         if (!isFlipped) {
           setIsFlipped(true);
@@ -815,28 +815,38 @@ function FlashcardView({ list, onToggleMastered, onEdit, onDelete, initialIndex 
       }, autoPlayDelay * 1000);
     }
     return () => clearTimeout(timer);
-  }, [isAutoPlaying, isFlipped, currentIndex, list.length, autoPlayDelay]);
+  }, [isAutoPlaying, isFlipped, currentIndex, list.length, autoPlayDelay, currentItem]);
 
   // Auto-speak on flip
   useEffect(() => {
     if (currentItem) {
+      const isWaitMode = isAutoPlaying && autoPlayDelay === 'on-end';
+      const onEndHandler = isWaitMode ? () => {
+        if (!isFlipped) {
+          setIsFlipped(true);
+        } else {
+          setIsFlipped(false);
+          setCurrentIndex((prev) => (prev + 1) % list.length);
+        }
+      } : undefined;
+
       if (isFlipped) {
         // Speak the back side
         if (frontSide === "chinese") {
-          speak(currentItem.meaning, "vi-VN", rate);
+          speak(currentItem.meaning, "vi-VN", rate, undefined, onEndHandler);
         } else {
-          speak(currentItem.chinese, "zh-CN", rate);
+          speak(currentItem.chinese, "zh-CN", rate, undefined, onEndHandler);
         }
       } else {
         // Speak the front side
         if (frontSide === "chinese") {
-          speak(currentItem.chinese, "zh-CN", rate);
+          speak(currentItem.chinese, "zh-CN", rate, undefined, onEndHandler);
         } else {
-          speak(currentItem.meaning, "vi-VN", rate);
+          speak(currentItem.meaning, "vi-VN", rate, undefined, onEndHandler);
         }
       }
     }
-  }, [isFlipped, currentItem, frontSide, rate]);
+  }, [isFlipped, currentItem, frontSide, rate, isAutoPlaying, autoPlayDelay, list.length]);
 
   const handleShuffle = () => {
     const newOrder = [...shuffleOrder].sort(() => Math.random() - 0.5);
@@ -875,12 +885,13 @@ function FlashcardView({ list, onToggleMastered, onEdit, onDelete, initialIndex 
             </button>
             <select 
               value={autoPlayDelay}
-              onChange={(e) => setAutoPlayDelay(Number(e.target.value))}
+              onChange={(e) => setAutoPlayDelay(e.target.value === 'on-end' ? 'on-end' : Number(e.target.value))}
               className="bg-transparent text-[10px] font-bold outline-none"
             >
               <option value={3}>3s</option>
               <option value={4}>4s</option>
               <option value={5}>5s</option>
+              <option value="on-end">Đọc xong</option>
             </select>
           </div>
           <div className="relative">

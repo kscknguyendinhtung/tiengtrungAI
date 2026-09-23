@@ -18,7 +18,7 @@ export const ttsService = {
     localStorage.setItem("tiengtrungAI_rate", String(rate));
   },
 
-  speak(text: string, lang: "zh-CN" | "vi-VN" = "zh-CN", rate?: number, volume?: number) {
+  speak(text: string, lang: "zh-CN" | "vi-VN" = "zh-CN", rate?: number, volume?: number, onEnd?: () => void) {
     if (!window.speechSynthesis) return;
 
     // Cancel any ongoing speech
@@ -31,6 +31,10 @@ export const ttsService = {
     // Set volume (1.5 = 150%)
     const targetVolume = volume !== undefined ? volume : this.getVolume();
     utterance.volume = targetVolume;
+
+    if (onEnd) {
+      utterance.onend = onEnd;
+    }
 
     const attemptSpeak = () => {
       const voices = window.speechSynthesis.getVoices();
