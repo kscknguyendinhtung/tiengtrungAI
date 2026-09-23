@@ -1,5 +1,3 @@
-let currentUtterance: SpeechSynthesisUtterance | null = null;
-
 export const ttsService = {
   getVolume(): number {
     const saved = localStorage.getItem("tiengtrungAI_volume");
@@ -23,9 +21,6 @@ export const ttsService = {
   speak(text: string, lang: "zh-CN" | "vi-VN" = "zh-CN", rate?: number, volume?: number, onEnd?: () => void) {
     if (!window.speechSynthesis) return;
 
-    if (currentUtterance) {
-      currentUtterance.onend = null; // Remove handler BEFORE cancel
-    }
     // Cancel any ongoing speech
     window.speechSynthesis.cancel();
 
@@ -40,8 +35,6 @@ export const ttsService = {
     if (onEnd) {
       utterance.onend = onEnd;
     }
-
-    currentUtterance = utterance;
 
     const attemptSpeak = () => {
       const voices = window.speechSynthesis.getVoices();
@@ -85,9 +78,6 @@ export const ttsService = {
 
   stop() {
     if (window.speechSynthesis) {
-      if (currentUtterance) {
-        currentUtterance.onend = null;
-      }
       window.speechSynthesis.cancel();
     }
   }

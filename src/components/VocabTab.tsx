@@ -126,10 +126,7 @@ export default function VocabTab({
     if (sortOrder === "alpha") {
       list.sort((a, b) => a.chinese.localeCompare(b.chinese, 'zh-Hans-CN'));
     } else {
-      // "newest" currently reverses the list (making newest first). 
-      // User wants oldest first, so we just return the list without reversing,
-      // or change logic to keep oldest first by default based on input order.
-      // Assuming vocabList is ordered by created time (oldest -> newest).
+      list.reverse();
     }
 
     return list;
@@ -322,7 +319,7 @@ export default function VocabTab({
               >
                 {sortOrder === "newest" ? <Clock className="w-4 h-4" /> : <SortAsc className="w-4 h-4" />}
                 <span className="text-[10px] font-bold uppercase">
-                  {sortOrder === "newest" ? "Cũ nhất" : "A-Z"}
+                  {sortOrder === "newest" ? "Mới" : "A-Z"}
                 </span>
               </button>
             </div>
