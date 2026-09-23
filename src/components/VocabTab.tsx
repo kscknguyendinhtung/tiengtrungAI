@@ -821,19 +821,10 @@ function FlashcardView({ list, onToggleMastered, onEdit, onDelete, initialIndex 
   }, [isAutoPlaying, isFlipped, currentIndex, list.length, autoPlayDelay, currentItem]);
 
   // Auto-speak on flip
-  const onEndTriggeredRef = useRef(false);
-
-  useEffect(() => {
-    onEndTriggeredRef.current = false;
-  }, [currentItem]);
-
   useEffect(() => {
     if (currentItem) {
       const isWaitMode = isAutoPlaying && autoPlayDelay === 'on-end';
       const onEndHandler = isWaitMode ? () => {
-        if (onEndTriggeredRef.current) return;
-        onEndTriggeredRef.current = true;
-        
         if (!isFlipped) {
           setIsFlipped(true);
         } else {
