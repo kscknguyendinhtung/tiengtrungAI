@@ -46,8 +46,8 @@ interface Props {
   setSearchQuery: React.Dispatch<React.SetStateAction<string>>;
   filterStatus: "all" | "mastered" | "unmastered";
   setFilterStatus: React.Dispatch<React.SetStateAction<"all" | "mastered" | "unmastered">>;
-  sortOrder: "newest" | "alpha";
-  setSortOrder: React.Dispatch<React.SetStateAction<"newest" | "alpha">>;
+  sortOrder: "newest" | "oldest" | "alpha";
+  setSortOrder: React.Dispatch<React.SetStateAction<"newest" | "oldest" | "alpha">>;
   selectedWordTypes: string[];
   setSelectedWordTypes: React.Dispatch<React.SetStateAction<string[]>>;
   selectedTopics: string[];
@@ -125,7 +125,7 @@ export default function VocabTab({
     // Sort
     if (sortOrder === "alpha") {
       list.sort((a, b) => a.chinese.localeCompare(b.chinese, 'zh-Hans-CN'));
-    } else {
+    } else if (sortOrder === "newest") {
       list.reverse();
     }
 
@@ -313,13 +313,13 @@ export default function VocabTab({
                 </span>
               </button>
               <button 
-                onClick={() => setSortOrder(prev => prev === "newest" ? "alpha" : "newest")}
-                className={`p-2 rounded-lg transition-all flex items-center gap-1 ${sortOrder === "alpha" ? 'bg-white shadow-sm text-emerald-600' : 'text-neutral-500'}`}
+                onClick={() => setSortOrder(prev => prev === "newest" ? "oldest" : prev === "oldest" ? "alpha" : "newest")}
+                className={`p-2 rounded-lg transition-all flex items-center gap-1 ${sortOrder !== "newest" ? 'bg-white shadow-sm text-emerald-600' : 'text-neutral-500'}`}
                 title="Sắp xếp"
               >
-                {sortOrder === "newest" ? <Clock className="w-4 h-4" /> : <SortAsc className="w-4 h-4" />}
+                {sortOrder === "alpha" ? <SortAsc className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
                 <span className="text-[10px] font-bold uppercase">
-                  {sortOrder === "newest" ? "Mới" : "A-Z"}
+                  {sortOrder === "newest" ? "Mới" : sortOrder === "oldest" ? "Cũ" : "A-Z"}
                 </span>
               </button>
             </div>
